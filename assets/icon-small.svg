@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>GChat HTML Preview (small sizes)</title>
+  <!--
+    Same mark as icon.svg, redrawn for 16px and 32px: less padding, thicker
+    strokes, wider slab, wider gaps. Downscaling the full-detail version turned
+    the chevrons to mush and closed the gaps around the slab.
+
+    Keep the two files in visual sync — same colours, same 11 degree lean.
+  -->
+
+  <rect width="128" height="128" rx="26" fill="#414042"/>
+
+  <g transform="translate(12.44 0) skewX(-11)">
+    <path d="M38 38 L18 64 L38 90"
+          fill="none" stroke="#FFFFFF" stroke-width="17"
+          stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="52" y="22" width="24" height="84" rx="2" fill="#FFC61E"/>
+
+    <path d="M90 38 L110 64 L90 90"
+          fill="none" stroke="#FFFFFF" stroke-width="17"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

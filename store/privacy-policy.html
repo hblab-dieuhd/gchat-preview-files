@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — GChat Preview Files</title>
+<meta name="description" content="Privacy policy for the GChat Preview Files Chrome extension.">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2023;
+    --muted: #5f6368;
+    --rule: #e3e5e8;
+    --code-bg: #f4f5f7;
+    --link: #1a56b8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a;
+      --fg: #e6e7ea;
+      --muted: #9aa0a6;
+      --rule: #2c2e33;
+      --code-bg: #22242a;
+      --link: #8ab4f8;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 3rem 1.25rem 5rem;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font-size: 1.75rem; line-height: 1.25; margin: 0 0 .35rem; }
+  h2 { font-size: 1.2rem; margin: 2.25rem 0 .6rem; }
+  h3 { font-size: 1rem; margin: 1.75rem 0 .5rem; }
+  p, ul, ol { margin: 0 0 1rem; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin-bottom: .35rem; }
+  a { color: var(--link); }
+  .updated { color: var(--muted); font-size: .9rem; margin-bottom: 2rem; }
+  code {
+    background: var(--code-bg);
+    padding: .1em .35em;
+    border-radius: 3px;
+    font: .875em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    word-break: break-word;
+  }
+  .table-wrap { overflow-x: auto; margin: 0 0 1rem; }
+  table { border-collapse: collapse; width: 100%; min-width: 30rem; font-size: .95rem; }
+  th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-weight: 600; }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: .875rem;
+  }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Privacy Policy — GChat Preview Files</h1>
+<p class="updated">Last updated: 28 July 2026</p>
+
+<p>GChat Preview Files is a Chrome extension that renders <code>.html</code>,
+<code>.md</code>, <code>.json</code>, <code>.mmd</code> and <code>.puml</code>
+attachments inline in Google Chat. This policy describes every piece of data the
+extension touches and where it goes.</p>
+
+<h2>The short version</h2>
+
+<p>The extension has no server, no account, no analytics and no telemetry.
+Nothing is collected about you, and nothing is sent anywhere except in the two
+situations described below — one of which you can switch off.</p>
+
+<h2>What the extension handles</h2>
+
+<p><strong>Attachment content.</strong> When you click <em>Preview</em> on an
+attachment, the extension requests that file from Google's own attachment
+endpoint using your existing browser session, and renders it inside a sandboxed
+frame in your browser. The file content stays in memory for as long as the
+preview is open. It is not stored, not written to disk by the extension, not
+logged, and not transmitted to the developer or to any third party.</p>
+
+<p><strong>Your settings.</strong> Your choices on the options page — which file
+types get a Preview button, whether HTML previews start with scripts enabled,
+whether Mermaid and PlantUML diagrams render, the PlantUML server address, the
+JSON expand depth and the maximum file size — are stored using Chrome's
+<code>storage.sync</code>. That means they are held in your own Google account so
+they follow you between machines. The developer has no access to them. No file
+content is ever written to storage.</p>
+
+<h2>What leaves your browser</h2>
+
+<p><strong>1. The attachment request.</strong> Fetching the file you asked to
+preview goes to Google's own servers, the same ones Google Chat would use if you
+had clicked Download. Nothing is added to that request.</p>
+
+<p><strong>2. PlantUML diagram source — only if you leave PlantUML
+enabled.</strong> PlantUML has no browser renderer, so a
+<code>plantuml</code>-tagged block inside a previewed Markdown file, or a
+previewed <code>.puml</code> file, can only be drawn by a PlantUML server. When
+one is present, the extension sends <strong>the source text of that
+diagram</strong> — not the rest of the file, and nothing about you — to the
+PlantUML server configured in the settings. By default that is the public server
+at <code>https://www.plantuml.com/plantuml</code>, which is operated by a third
+party under <a href="https://plantuml.com/" rel="noopener">its own terms</a>. Its
+handling of that data is outside the developer's control.</p>
+
+<p>You have three ways to change this:</p>
+<ul>
+  <li>turn PlantUML rendering off in the options page, and no diagram source ever
+      leaves your machine — a <code>.puml</code> file then opens showing its
+      source instead;</li>
+  <li>point the setting at a PlantUML server inside your own network; or</li>
+  <li>leave it as it is, having read this.</li>
+</ul>
+
+<p>Mermaid diagrams are rendered locally and are never sent anywhere.</p>
+
+<p>There is no third case. Previewed file content itself cannot make network
+requests at all: the preview runs under a Content Security Policy of
+<code>default-src 'none'</code> with <code>connect-src 'none'</code> and
+<code>form-action 'none'</code>, which blocks fetch, XHR, WebSockets, beacons,
+remote images, remote fonts, remote scripts and form submissions from inside a
+previewed file.</p>
+
+<h2>What the extension never does</h2>
+
+<ul>
+  <li>No analytics, tracking, fingerprinting or usage reporting of any kind.</li>
+  <li>No selling or transfer of user data to third parties.</li>
+  <li>No use of your data for advertising, credit scoring or lending decisions.</li>
+  <li>No use of your data for anything unrelated to previewing the attachment you
+      clicked on.</li>
+  <li>No reading of your chat messages. The extension looks only at attachment
+      cards, to find the file name and the attachment URL.</li>
+</ul>
+
+<h2>Permissions and why they exist</h2>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>Permission</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>storage</code></td>
+      <td>Saving your options-page preferences. Preferences only.</td>
+    </tr>
+    <tr>
+      <td><code>chat.google.com</code>, <code>mail.google.com</code></td>
+      <td>The two places Google Chat runs; needed to add the Preview button and
+          fetch the attachment.</td>
+    </tr>
+    <tr>
+      <td><code>*.googleusercontent.com</code>,
+          <code>*.usercontent.google.com</code>,
+          <code>drive.google.com</code></td>
+      <td>Google's file-serving hosts, which the attachment request is redirected
+          to.</td>
+    </tr>
+    <tr>
+      <td><code>www.plantuml.com</code></td>
+      <td>Drawing PlantUML diagrams, as described above.</td>
+    </tr>
+    <tr>
+      <td>Optional <code>https://*/*</code></td>
+      <td>Never requested at install. Requested for one specific host only, at the
+          moment you save a self-hosted PlantUML server address. Declining
+          abandons the setting.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Children</h2>
+
+<p>The extension is a workplace tool and is not directed at children under 13.</p>
+
+<h2>Changes</h2>
+
+<p>Any change to this policy will be published at this URL with an updated date,
+and a change affecting what leaves your browser will also be described in the
+extension's Chrome Web Store release notes.</p>
+
+<h2>Contact</h2>
+
+<p>Questions about this policy:
+<a href="mailto:dieuhd@hblab.vn">dieuhd@hblab.vn</a></p>
+
+<footer>
+  Privacy policy for the GChat Preview Files Chrome extension. Not affiliated
+  with, endorsed by, or sponsored by Google. Google Chat is a trademark of
+  Google LLC.
+</footer>
+
+</main>
+</body>
+</html>

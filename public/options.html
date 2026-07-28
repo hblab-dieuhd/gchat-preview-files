@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>GChat Preview Files — Settings</title>
+    <style>
+      /*
+        Developer-console look: charcoal shell, monospace for anything that is a
+        literal (file extensions, URLs, numbers), HBLAB yellow reserved for state
+        — the active nav item and enabled toggles — so it never has to carry text
+        contrast, which it would fail at on white.
+      */
+      :root {
+        --bg: #16171a;
+        --panel: #1d1e21;
+        --panel-2: #232427;
+        --line: #2e3034;
+        --line-soft: #26282b;
+        --text: #e6e8eb;
+        --muted: #9298a0;
+        --faint: #6b7178;
+        --accent: #ffc61e;
+        --accent-ink: #16171a;
+        --danger: #ff8a80;
+        --ok: #81c995;
+        --warn-bg: #2a2413;
+        --warn-ink: #f5cf6b;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f6f7f9;
+          --panel: #ffffff;
+          --panel-2: #f1f3f5;
+          --line: #dfe2e6;
+          --line-soft: #eceef1;
+          --text: #1f2124;
+          --muted: #5f6570;
+          --faint: #8b919a;
+          --accent: #f0b400;
+          --accent-ink: #1f2124;
+          --danger: #c5221f;
+          --ok: #137333;
+          --warn-bg: #fdf5da;
+          --warn-ink: #6b5410;
+        }
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.6 var(--sans);
+      }
+
+      /* ---------- title bar ---------- */
+      .titlebar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 22px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+      .titlebar svg { width: 26px; height: 26px; flex: none; border-radius: 6px; }
+      .titlebar h1 {
+        margin: 0;
+        font: 600 14px/1.3 var(--mono);
+        letter-spacing: 0.2px;
+      }
+      .titlebar .sub { color: var(--faint); font: 12px/1.3 var(--mono); }
+      .spacer { flex: 1; }
+      .version {
+        padding: 3px 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font: 11px/1 var(--mono);
+      }
+
+      /* ---------- shell ---------- */
+      .shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); overflow: hidden; }
+
+      nav {
+        padding: 18px 12px;
+        border-right: 1px solid var(--line);
+        overflow-y: auto;
+      }
+      .nav-label {
+        padding: 0 10px 10px;
+        color: var(--faint);
+        font: 11px/1 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      nav a {
+        position: relative;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 7px;
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 13px;
+        transition: background 0.12s, color 0.12s;
+      }
+      nav a .num { color: var(--faint); font: 11px/1.5 var(--mono); transition: color 0.12s; }
+      nav a:hover { background: var(--panel-2); color: var(--text); }
+      nav a::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 50%;
+        width: 2px;
+        height: 0;
+        border-radius: 2px;
+        background: var(--accent);
+        transform: translateY(-50%);
+        transition: height 0.15s ease;
+      }
+      nav a.active { background: var(--panel-2); color: var(--text); font-weight: 500; }
+      nav a.active::before { height: 18px; }
+      nav a.active .num { color: var(--accent); }
+
+      /* ---------- content ---------- */
+      main { position: relative; padding: 22px 26px 40px; overflow-y: auto; scroll-behavior: smooth; }
+      .stack { display: flex; flex-direction: column; gap: 14px; max-width: 640px; }
+
+      section {
+        padding: 18px 20px 20px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        scroll-margin-top: 16px;
+      }
+      section > h2 {
+        display: flex;
+        align-items: baseline;
+        gap: 9px;
+        margin: 0 0 3px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      section > h2 .num { color: var(--accent); font: 11px/1 var(--mono); }
+      .note {
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+      .note code, code {
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--panel-2);
+        font: 0.92em var(--mono);
+      }
+
+      /* ---------- rows and toggles ---------- */
+      .row {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 11px 0;
+        border-top: 1px solid var(--line-soft);
+      }
+      .row:first-of-type { border-top: 0; }
+      .row .text { flex: 1; min-width: 0; }
+      .row .name { font-size: 13.5px; }
+      .row .desc { margin-top: 2px; color: var(--muted); font-size: 12.5px; }
+
+      input[type="checkbox"] {
+        appearance: none;
+        position: relative;
+        flex: none;
+        margin: 2px 0 0;
+        width: 38px;
+        height: 21px;
+        border-radius: 999px;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+      }
+      input[type="checkbox"]::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: var(--faint);
+        transition: transform 0.15s, background 0.15s;
+      }
+      input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
+      input[type="checkbox"]:checked::after { transform: translateX(17px); background: var(--accent-ink); }
+      input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+      .field { margin-top: 14px; }
+      .field > label {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--muted);
+        font: 11px/1 var(--mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      input[type="url"], input[type="number"], select {
+        padding: 9px 11px;
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel-2);
+        color: var(--text);
+        font: 13px var(--mono);
+      }
+      input[type="number"] { max-width: 130px; }
+      input:focus-visible, select:focus-visible {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+      }
+      input:disabled, select:disabled { opacity: 0.45; cursor: not-allowed; }
+      select { font-family: var(--sans); }
+      .suffix { margin-left: 8px; color: var(--faint); font: 12px var(--mono); }
+      .inline { display: flex; align-items: center; }
+
+      .callout {
+        margin-top: 13px;
+        padding: 10px 13px;
+        border-radius: 8px;
+        border-left: 2px solid var(--accent);
+        background: var(--warn-bg);
+        color: var(--warn-ink);
+        font-size: 12.5px;
+        line-height: 1.55;
+      }
+      .callout[hidden], .error[hidden], .status[hidden] { display: none; }
+      .error { margin-top: 10px; color: var(--danger); font-size: 12.5px; }
+
+      /* ---------- footer ---------- */
+      footer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 13px 26px;
+        border-top: 1px solid var(--line);
+        background: var(--panel);
+      }
+      button {
+        padding: 8px 16px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel-2);
+        color: var(--text);
+        font: 500 13px var(--sans);
+        cursor: pointer;
+        transition: filter 0.12s;
+      }
+      button:hover { filter: brightness(1.15); }
+      button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+      button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .status { color: var(--ok); font: 12.5px var(--mono); }
+      .status.bad { color: var(--danger); }
+
+      @media (max-width: 720px) {
+        .shell { grid-template-columns: 1fr; }
+        nav { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="titlebar">
+      <!-- The extension mark, inlined so the page needs no image request. -->
+      <svg viewBox="0 0 128 128" aria-hidden="true">
+        <rect width="128" height="128" rx="28" fill="#414042" />
+        <g transform="translate(12.44 0) skewX(-11)">
+          <path d="M42 40 L23 64 L42 88" fill="none" stroke="#fff" stroke-width="14"
+                stroke-linecap="round" stroke-linejoin="round" />
+          <rect x="54" y="26" width="20" height="76" rx="3" fill="#FFC61E" />
+          <path d="M86 40 L105 64 L86 88" fill="none" stroke="#fff" stroke-width="14"
+                stroke-linecap="round" stroke-linejoin="round" />
+        </g>
+      </svg>
+      <div>
+        <h1>gchat-preview-files</h1>
+        <div class="sub">settings</div>
+      </div>
+      <div class="spacer"></div>
+      <span class="version" id="version">—</span>
+    </div>
+
+    <div class="shell">
+      <nav id="nav" aria-label="Sections">
+        <div class="nav-label">Sections</div>
+        <a href="#files"><span class="num">01</span> File types</a>
+        <a href="#scripts"><span class="num">02</span> Scripts</a>
+        <a href="#diagrams"><span class="num">03</span> Diagrams</a>
+        <a href="#json"><span class="num">04</span> JSON</a>
+        <a href="#limits"><span class="num">05</span> Limits</a>
+      </nav>
+
+      <main id="content">
+        <div class="stack">
+          <section id="files">
+            <h2><span class="num">01</span> File types</h2>
+            <p class="note">
+              Which attachments get a Preview button. Plain <code>.txt</code> is absent on
+              purpose — Google Chat already previews it.
+            </p>
+            <div class="row">
+              <div class="text">
+                <div class="name">HTML</div>
+                <div class="desc"><code>.html</code> <code>.htm</code> <code>.xhtml</code></div>
+              </div>
+              <input type="checkbox" id="previewHtml" />
+            </div>
+            <div class="row">
+              <div class="text">
+                <div class="name">Markdown</div>
+                <div class="desc"><code>.md</code> <code>.markdown</code> <code>.mdown</code> <code>.mkd</code></div>
+              </div>
+              <input type="checkbox" id="previewMarkdown" />
+            </div>
+            <div class="row">
+              <div class="text">
+                <div class="name">JSON</div>
+                <div class="desc"><code>.json</code></div>
+              </div>
+              <input type="checkbox" id="previewJson" />
+            </div>
+            <div class="row">
+              <div class="text">
+                <div class="name">Mermaid</div>
+                <div class="desc"><code>.mmd</code> <code>.mermaid</code> — the whole file drawn as one diagram</div>
+              </div>
+              <input type="checkbox" id="previewMermaid" />
+            </div>
+            <div class="row">
+              <div class="text">
+                <div class="name">PlantUML</div>
+                <div class="desc"><code>.puml</code> <code>.plantuml</code> <code>.pu</code> <code>.iuml</code> <code>.wsd</code></div>
+              </div>
+              <input type="checkbox" id="previewPlantUml" />
+            </div>
+            <p class="note">
+              Whether these two are actually <em>drawn</em> is section 03. With drawing off they
+              still open, showing the file’s source — which for PlantUML means nothing is sent
+              to a server.
+            </p>
+          </section>
+
+          <section id="scripts">
+            <h2><span class="num">02</span> Scripts in HTML previews</h2>
+            <p class="note">
+              Previewed files always run cut off from your Google account and from the network.
+              This only controls whether their scripts run at all.
+            </p>
+            <div class="row">
+              <div class="text">
+                <div class="name">Allow scripts as soon as a preview opens</div>
+                <div class="desc">
+                  Off by default. You can still switch scripts on per preview, from the button in
+                  the preview window.
+                </div>
+              </div>
+              <input type="checkbox" id="allowScriptsByDefault" />
+            </div>
+            <div class="callout" id="scriptsWarning" hidden>
+              With this on, a file that draws a fake login form can capture what you type into it.
+              It still cannot send anything out, but leaving this off is the safer default.
+            </div>
+          </section>
+
+          <section id="diagrams">
+            <h2><span class="num">03</span> Drawing diagrams</h2>
+            <p class="note">
+              Applies to both fenced blocks inside a Markdown file and whole
+              <code>.mmd</code> / <code>.puml</code> attachments. Switched off, the source is
+              shown instead of a picture.
+            </p>
+            <div class="row">
+              <div class="text">
+                <div class="name">Draw Mermaid</div>
+                <div class="desc">Drawn on your machine. Nothing is sent anywhere.</div>
+              </div>
+              <input type="checkbox" id="mermaidEnabled" />
+            </div>
+            <div class="row">
+              <div class="text">
+                <div class="name">Draw PlantUML</div>
+                <div class="desc">
+                  PlantUML has no browser renderer, so the diagram source is sent to the server
+                  below to be drawn.
+                </div>
+              </div>
+              <input type="checkbox" id="plantUmlEnabled" />
+            </div>
+            <div class="field">
+              <label for="plantUmlServer">PlantUML server</label>
+              <input type="url" id="plantUmlServer" placeholder="https://www.plantuml.com/plantuml" />
+            </div>
+            <div class="callout" id="plantUmlWarning" hidden>
+              Diagram source is sent to <strong id="plantUmlHost">plantuml.com</strong>. If your
+              diagrams describe internal systems, point this at a PlantUML server inside your own
+              network — Chrome will ask permission to reach it.
+            </div>
+            <div class="error" id="plantUmlError" hidden></div>
+          </section>
+
+          <section id="json">
+            <h2><span class="num">04</span> JSON</h2>
+            <p class="note">The tree collapses and expands per node; this sets where it starts.</p>
+            <div class="field">
+              <label for="jsonExpand">Initial depth</label>
+              <select id="jsonExpand">
+                <option value="auto">Top two levels (default)</option>
+                <option value="all">Everything expanded</option>
+                <option value="none">Everything collapsed</option>
+              </select>
+            </div>
+          </section>
+
+          <section id="limits">
+            <h2><span class="num">05</span> Limits</h2>
+            <p class="note">Large files are refused rather than previewed — the browser struggles long before the network does.</p>
+            <div class="field">
+              <label for="maxMb">Maximum file size</label>
+              <div class="inline">
+                <input type="number" id="maxMb" min="1" max="25" step="1" />
+                <span class="suffix">MB &middot; max 25</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <footer>
+      <button type="button" class="primary" id="save">Save</button>
+      <button type="button" id="reset">Reset to defaults</button>
+      <span class="status" id="status" hidden></span>
+    </footer>
+
+    <script src="options.js"></script>
+  </body>
+</html>

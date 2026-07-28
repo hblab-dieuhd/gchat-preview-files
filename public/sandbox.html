@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>HTML preview</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #fff;
+      }
+      #frame-host {
+        height: 100%;
+      }
+      #frame-host iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      The attachment renders in a frame built by sandbox.js, never in this page's
+      own document. This page keeps its postMessage listener alive; the frame has
+      no allow-same-origin, so the attachment cannot reach this page, the
+      extension, or Google Chat — and by default no allow-scripts either.
+    -->
+    <div id="frame-host"></div>
+
+    <!-- Classic script, not a module: module fetches fail from an opaque origin. -->
+    <script src="sandbox.js"></script>
+  </body>
+</html>

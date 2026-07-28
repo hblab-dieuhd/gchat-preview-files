@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>GChat HTML Preview</title>
+  <!--
+    Master icon. Regenerate the PNGs with `npm run icons` after editing.
+
+    The HBLAB logo's defining trait is not the parallelogram on its own — it is
+    that the whole wordmark leans. Every block, and the tagline, shares one
+    ~11 degree italic. So the entire mark here sits inside a single skewX(-11),
+    which makes the yellow slab a parallelogram for free and carries the same
+    lean into the chevrons.
+
+    Meaning: HBLAB's slab held inside < > — the company's content, previewed as
+    HTML. The slab is the tallest element so the brand reads first at small sizes.
+  -->
+
+  <rect width="128" height="128" rx="28" fill="#414042"/>
+
+  <!-- translate compensates for skewX shifting the vertical centre left by y*tan(11). -->
+  <g transform="translate(12.44 0) skewX(-11)">
+    <path d="M42 40 L23 64 L42 88"
+          fill="none" stroke="#FFFFFF" stroke-width="14"
+          stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="54" y="26" width="20" height="76" rx="3" fill="#FFC61E"/>
+
+    <path d="M86 40 L105 64 L86 88"
+          fill="none" stroke="#FFFFFF" stroke-width="14"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

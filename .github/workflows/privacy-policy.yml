@@ -1,0 +1,127 @@
+name: Privacy policy
+
+# Publishes privacy-policy.html to GitHub Pages, then checks the URL a Chrome Web
+# Store reviewer will actually open. Version 1.1.0 was rejected ("Purple Nickel")
+# because that URL was not a policy page, so the check is the point of this
+# workflow, not an extra.
+#
+# Requires: the repo is public (Pages needs a paid plan on private repos), and
+# Settings -> Pages -> Source is set to "GitHub Actions".
+#
+# Deliberately portable between two repos, because the extension source stays
+# private while the policy has to be public. See store/README.md.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      # Both, so this file can be copied verbatim into a policy-only public repo
+      # (page at the root) or stay in the extension repo (page under store/).
+      - privacy-policy.html
+      - store/privacy-policy.html
+      - .github/workflows/privacy-policy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a deploy already in flight — a half-applied Pages deployment can
+# leave the URL 404ing, which is the failure this whole file exists to prevent.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    # Every action below is on a major that declares `using: node24`. Node 20 is
+    # deprecated on the runners, and an action still declaring node20 gets a
+    # warning annotation on every run. Do not roll these back to reach an older
+    # major without checking its action.yml.
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Assemble the site
+        run: |
+          # Works from either layout, so the file is portable between the two repos.
+          src=store/privacy-policy.html
+          [ -f "$src" ] || src=privacy-policy.html
+          if [ ! -f "$src" ]; then
+            echo "::error::no privacy-policy.html at ./ or ./store/"
+            exit 1
+          fi
+          echo "Publishing $src"
+
+          mkdir -p _site
+          # Served at both paths on purpose: the explicit filename is what gets
+          # pasted into the dashboard, and index.html means the bare site root
+          # lands on the policy too rather than on a directory listing or a 404.
+          cp "$src" _site/privacy-policy.html
+          cp "$src" _site/index.html
+          # No .nojekyll here on purpose. Jekyll only runs in the deploy-from-a-
+          # branch mode; an artifact is served exactly as uploaded. The file would
+          # also never arrive — upload-pages-artifact tars with --exclude=.[^/]*
+          # unless include-hidden-files is on, so it is dropped without a word.
+
+      # No `enablement: true` here. It cannot work with the default token: the
+      # action's own action.yml says it "requires a token other than GITHUB_TOKEN",
+      # because creating a Pages site needs administration:write, which GITHUB_TOKEN
+      # does not have. With it set, the run fails on this step with
+      # "Create Pages site failed. Error: Resource not accessible by integration".
+      # Enabling Pages is a one-time click in Settings; a PAT in secrets to automate
+      # that one click is not a trade worth making.
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - id: deploy
+        uses: actions/deploy-pages@v5
+
+      - name: Verify the URL a reviewer will open
+        run: |
+          url="${{ steps.deploy.outputs.page_url }}privacy-policy.html"
+          echo "Checking $url"
+
+          # A fresh deployment can take a moment to become reachable at the edge.
+          code=000
+          for attempt in 1 2 3 4 5 6; do
+            code=$(curl -sS -L -o /dev/null -w '%{http_code}' "$url" || echo 000)
+            [ "$code" = "200" ] && break
+            echo "attempt $attempt: HTTP $code — retrying in 10s"
+            sleep 10
+          done
+
+          if [ "$code" != "200" ]; then
+            echo "::error::$url returned HTTP $code, not 200. Do not resubmit to the Chrome Web Store."
+            exit 1
+          fi
+
+          type=$(curl -sS -I -L "$url" | tr -d '\r' \
+            | awk -F': ' 'tolower($1) == "content-type" { print $2 }' | tail -1)
+          echo "content-type: $type"
+
+          # text/plain is the trap: a markdown or text file shows syntax rather
+          # than a rendered page, and reviewers read that as "not a policy page".
+          case "$type" in
+            text/html*) ;;
+            *) echo "::error::content-type is '$type', expected text/html."; exit 1 ;;
+          esac
+
+          {
+            echo "### Privacy policy is live"
+            echo
+            echo "Paste this into the Chrome Web Store **Privacy** tab and into the"
+            echo "\`<PRIVACY_POLICY_URL>\` placeholder in the detailed description:"
+            echo
+            echo "\`\`\`"
+            echo "$url"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"

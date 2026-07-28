@@ -1,0 +1,29 @@
+{
+  "name": "gchat-preview-html",
+  "version": "1.1.0",
+  "description": "Chrome extension that previews HTML attachments inline in Google Chat.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "build:all": "vite build --mode background && vite build --mode content && vite build --mode sandbox && vite build --mode options && vite build --mode mermaid",
+    "build": "npm run typecheck && npm run test && npm run clean && npm run build:all",
+    "dev": "vite build --mode background --watch & vite build --mode content --watch & vite build --mode sandbox --watch & vite build --mode options --watch & vite build --mode mermaid --watch & wait",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "package": "npm run build && node scripts/package.mjs",
+    "release": "npm run package && chrome-webstore-upload upload --source release/gchat-preview-files-$npm_package_version.zip --auto-publish",
+    "icons": "rsvg-convert -w 16 -h 16 assets/icon-small.svg -o public/icons/icon16.png && rsvg-convert -w 32 -h 32 assets/icon-small.svg -o public/icons/icon32.png && rsvg-convert -w 48 -h 48 assets/icon.svg -o public/icons/icon48.png && rsvg-convert -w 128 -h 128 assets/icon.svg -o public/icons/icon128.png"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.2.2",
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5"
+  },
+  "dependencies": {
+    "highlight.js": "^11.11.1",
+    "marked": "^18.0.7",
+    "mermaid": "^11.16.0"
+  }
+}
