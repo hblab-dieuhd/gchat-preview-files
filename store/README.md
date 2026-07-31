@@ -253,11 +253,12 @@ clicking, not the wait.
 
 ### One-time setup
 
-```bash
-npm i -D chrome-webstore-upload-cli
-```
-
-Then get API credentials:
+`chrome-webstore-upload-cli` is already a devDependency, so `npm ci` is enough.
+What is left is credentials — **five** values, not four. `PUBLISHER_ID` is the one
+that gets missed: the CLI moved to the Web Store API v2, whose every endpoint is
+`publishers/{publisherId}/items/{extensionId}`, and the underlying module lists it
+in `requiredFields`. Without it the run dies on `Option "publisherId" is required`.
+It is the account/group publisher ID from the Developer Dashboard URL.
 
 1. <https://console.cloud.google.com> → new project.
 2. **APIs & Services → Library** → enable **Chrome Web Store API**.
@@ -286,57 +287,82 @@ Then get API credentials:
    The `refresh_token` in the response is what you keep. It does not expire once
    the consent screen is in production.
 
-6. The **extension ID** comes from the dashboard after the item exists.
+6. The **extension ID** comes from the dashboard once the item exists.
+7. The **publisher ID** is in the dashboard under **Publisher → Settings**. If this
+   item lives under an HBLAB group publisher rather than a personal account, switch
+   to that publisher first — a member of several publishers sees a different ID per
+   publisher, and the wrong one fails against an item it does not own.
+8. The token must be minted with the **Google account that owns the item**. Google's
+   docs call this out because it need not be the account that created the Cloud
+   project, and the two being different is normal for a group publisher.
 
-Put the four values in the environment — never in the repo:
+Put the five values in the environment — never in the repo:
 
 ```bash
 export EXTENSION_ID=...
+export PUBLISHER_ID=...
 export CLIENT_ID=...
 export CLIENT_SECRET=...
 export REFRESH_TOKEN=...
 ```
 
-### Releasing
+### Bumping the version
 
 ```bash
-npm run package     # verify locally first
-npm run release     # package + upload + publish
+npm version patch     # or minor / major / 1.2.0
 ```
 
-`npm run release` is already wired in `package.json`. Drop `--auto-publish` from
-it if you would rather upload a draft and press publish yourself — worth doing for
-the first few automated runs, so you can eyeball what landed.
+npm's `version` lifecycle runs [scripts/sync-version.mjs](../scripts/sync-version.mjs),
+which writes the new number into `public/manifest.json` and stages it, so both
+files move in one commit and one tag. `scripts/package.mjs` refuses to build when
+they disagree — that guard stays, this just stops it from firing.
+
+Update the *What's new* text under [Release notes](#release-notes) in the same
+commit. Nothing enforces that one.
+
+### Releasing locally
+
+```bash
+npm run package        # build and zip only, nothing leaves the machine
+npm run release:draft  # package + upload, leaves a draft to publish by hand
+npm run release        # package + upload + submit for review
+```
+
+**There is no `--auto-publish` flag.** An earlier version of this file and of the
+`release` script both used one, and it does nothing: the CLI derives auto-publish
+from `autoPublish: !command`, so `upload --auto-publish` uploads a draft and stops.
+meow passes the unknown flag through without complaint, so the run looks like a
+success and the version silently never reaches review. Omitting the command
+entirely is what uploads *and* publishes.
 
 ### From CI
 
-Only worth setting up once this is in git. Store the four values as repository
-secrets, then tag-triggered releases look like this:
+[.github/workflows/release.yml](../.github/workflows/release.yml) does it on a tag:
 
-```yaml
-# .github/workflows/release.yml
-name: Release
-on:
-  push:
-    tags: ['v*']
-
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - run: npm ci
-      - run: npm run package
-      - run: npx chrome-webstore-upload-cli upload --source release/*.zip --auto-publish
-        env:
-          EXTENSION_ID: ${{ secrets.EXTENSION_ID }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+```bash
+npm version minor
+git push --follow-tags
 ```
+
+Add the five values as repository secrets first (**Settings → Secrets and variables
+→ Actions**). The workflow checks all five are present before building and names
+the missing one — the CLI's own failure is an OAuth error that does not say which.
+
+It also refuses when the tag disagrees with `package.json` and `manifest.json`.
+`npm version` keeps all three in step; pushing a hand-made tag does not, and the
+consequence is releasing the previous version's bytes under a new name, which
+burns the version number permanently — the Store rejects any re-upload of a
+number it has seen.
+
+To upload a draft instead of submitting, run it from **Actions → Release → Run
+workflow** with *Submit for review* unticked. Worth doing on the first CI run.
+
+**Changing visibility breaks API publishing until you publish by hand once.** From
+Google's API docs: items are always published with their existing visibility, and
+if you change that setting in the dashboard you cannot publish through the API
+again until you have manually published under the new setting at least once. So
+switching this item between Public and Unlisted — an HBLAB-internal rollout, say —
+means the next release is a manual one, and the CI failure will not explain why.
 
 The build runs `npm run typecheck && npm test` before packaging, so a broken
 build cannot reach the Store.

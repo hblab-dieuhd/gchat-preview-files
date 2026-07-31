@@ -101,7 +101,7 @@ The extension has no analytics, no account, no server of its own, and sends
 nothing anywhere except the two cases it tells you about: fetching the
 attachment you asked to preview from Google's own servers, and — if you leave
 PlantUML enabled — the source of a PlantUML diagram to the PlantUML server you
-have configured. Full policy: <PRIVACY_POLICY_URL>
+have configured. Full policy: https://hblabvn.github.io/gchat-preview-files/
 
 Not affiliated with, endorsed by, or sponsored by Google. Google Chat is a
 trademark of Google LLC.
