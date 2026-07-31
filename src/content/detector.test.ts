@@ -157,14 +157,20 @@ test('accepts HTML uploaded as octet-stream, where the name is the only signal',
   assert.equal(describeAttachment(octet, ['report.html'])?.fileName, 'report.html')
 })
 
-test('falls back to plain links, taking the name from the URL', () => {
-  const attachment = describeAttachment('https://example.com/files/report.html', [null])
-  assert.equal(attachment?.fileName, 'report.html')
-  assert.equal(attachment?.downloadUrl, 'https://example.com/files/report.html')
-  assert.equal(attachment?.kind, 'html')
+test('ignores links somebody pasted into the conversation', () => {
+  // Only uploaded files get a button. A pasted URL ending in .html is an
+  // ordinary web page the browser already opens, and the extension holds no host
+  // permission for arbitrary sites — the button appeared and then failed to fetch.
+  assert.equal(describeAttachment('https://www.infosys.com/services/topaz-fabric.html', [
+    'https://www.infosys.com/services/topaz-fabric.html',
+  ]), null)
 
-  assert.equal(describeAttachment('https://example.com/notes.md', [null])?.kind, 'markdown')
-  assert.equal(describeAttachment('https://example.com/data.json', [null])?.kind, 'json')
+  assert.equal(describeAttachment('https://example.com/files/report.html', [null]), null)
+  assert.equal(describeAttachment('https://example.com/notes.md', [null]), null)
+  assert.equal(describeAttachment('https://example.com/data.json', [null]), null)
+  assert.equal(describeAttachment('https://raw.githubusercontent.com/a/b/main/README.md', [
+    'README.md',
+  ]), null)
 })
 
 test('offers fallback candidates, all preserving the token', () => {

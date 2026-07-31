@@ -197,14 +197,12 @@ export function describeAttachment(
     }
   }
 
-  // Fallback: a plain link straight to a file, where the name may only exist in
-  // the URL itself.
-  const fileName = labelName ?? fileNameFromUrl(rawUrl)
-  const kind = kindFromFileName(fileName)
-  if (kind && fileName && rawUrl.startsWith('https://')) {
-    return { fileName, downloadUrl: rawUrl, kind }
-  }
-
+  // Anything that is not the attachment endpoint is a link somebody typed or
+  // pasted into the conversation, not a file they uploaded — and a URL ending in
+  // `.html` is an ordinary web page, which the browser already opens perfectly
+  // well. Previewing those was worse than useless: the extension has no host
+  // permission for arbitrary sites, so the button appeared and then failed to
+  // fetch. Only uploaded files get a button.
   return null
 }
 
@@ -236,19 +234,6 @@ function pickFileName(labels: (string | null | undefined)[]): string | null {
   }
 
   return cleaned[0] ?? null
-}
-
-function fileNameFromUrl(rawUrl: string): string | null {
-  try {
-    const url = new URL(rawUrl)
-    for (const key of ['filename', 'name', 'title']) {
-      const value = url.searchParams.get(key)
-      if (value) return value
-    }
-    return decodeURIComponent(url.pathname.split('/').pop() ?? '') || null
-  } catch {
-    return null
-  }
 }
 
 function readParam(rawUrl: string, name: string): string | null {
