@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GChat Preview Files",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Read .html, .md and .json attachments right inside Google Chat — no download, no leaving the tab. Diagrams and JSON trees included.",
   "minimum_chrome_version": "120",
   "icons": {
