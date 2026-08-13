@@ -1,4 +1,5 @@
 import type {
+  AssetSettings,
   AttachmentKind,
   DiagramKind,
   DiagramSettings,
@@ -7,6 +8,7 @@ import type {
 import { escapeHtml, plantUmlUrl, renderMarkdown } from './markdown.ts'
 import { renderJson } from './json.ts'
 import { HIGHLIGHT_STYLES } from './highlight.ts'
+import { inlineRemoteAssets, type AssetFetcher, type InlineResult } from './inline-assets.ts'
 
 /**
  * Turns an attachment's text into the document the inner frame renders.
@@ -168,6 +170,16 @@ export interface BuildOptions {
   diagrams?: DiagramSettings
   renderMermaid?: MermaidRenderer
   fetchDiagram?: DiagramFetcher
+  /** Whether an HTML file's linked resources are built into it, and from where. */
+  assets?: AssetSettings
+  fetchAsset?: AssetFetcher
+  /**
+   * Told what the inlining actually managed, so the modal can say which host to
+   * allow when a file still comes out unstyled. It is reported to the extension's
+   * own UI rather than written into the document — an `html` attachment is the
+   * sender's document, and this extension does not add to it.
+   */
+  onAssetReport?: (result: InlineResult) => void
 }
 
 const ALL_DIAGRAMS: DiagramSettings = {
@@ -181,7 +193,19 @@ export async function buildDocument(
   kind: AttachmentKind,
   options: BuildOptions = {},
 ): Promise<string> {
-  if (kind === 'html') return text
+  // The file is the document. The only thing that may happen to it is having the
+  // resources it links to built in — and only when the user has switched that on,
+  // for hosts they have allowed. Off, it is returned byte for byte as before.
+  if (kind === 'html') {
+    if (!options.assets?.enabled || !options.fetchAsset) return text
+
+    const result = await inlineRemoteAssets(text, {
+      hosts: options.assets.hosts,
+      fetchAsset: options.fetchAsset,
+    })
+    options.onAssetReport?.(result)
+    return result.html
+  }
 
   const body = await renderBody(text, kind, options)
 

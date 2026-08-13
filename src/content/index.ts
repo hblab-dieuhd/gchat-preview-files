@@ -1,5 +1,6 @@
 import { observeHtmlAttachments, type HtmlAttachment } from './detector.ts'
 import { openPreview } from './preview-modal.ts'
+import { requestFromBackground } from './background-request.ts'
 import { fetchAttachmentText } from '../shared/fetch-attachment.ts'
 import type { FetchAttachmentRequest, FetchAttachmentResponse } from '../shared/protocol.ts'
 import { DEFAULT_SETTINGS, isKindEnabled, loadSettings, type Settings } from '../shared/settings.ts'
@@ -22,6 +23,9 @@ const BUTTON_STYLES = `
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    /* Bounded so a long name cannot stretch the message row; the name itself
+       ellipsises inside it. */
+    max-width: 320px;
     margin: 4px 0 4px 8px;
     padding: 2px 10px;
     border: 1px solid #dadce0;
@@ -34,8 +38,19 @@ const BUTTON_STYLES = `
     cursor: pointer;
     vertical-align: middle;
   }
+  .action { flex: none; }
+  /* min-width:0 is what lets a flex item shrink below its content and ellipsise. */
+  .name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #5f6368;
+  }
+  .name::before { content: "·"; margin-right: 4px; color: #bdc1c6; }
   button:hover { background: #f1f3f4; }
   button:disabled { color: #80868b; cursor: default; }
+  button:disabled .name { color: #b0b4b8; }
 `
 
 function attachPreviewButton(attachment: HtmlAttachment): void {
@@ -49,8 +64,20 @@ function attachPreviewButton(attachment: HtmlAttachment): void {
 
   const button = document.createElement('button')
   button.type = 'button'
-  button.textContent = 'Preview'
   button.title = `Preview ${attachment.fileName} without downloading it`
+
+  // The name is on the button, not only in the title: a card can sit next to
+  // others and "Preview" alone does not say which file it opens.
+  const action = document.createElement('span')
+  action.className = 'action'
+  action.textContent = 'Preview'
+
+  // textContent, never innerHTML — this string is the sender's `alt` text.
+  const name = document.createElement('span')
+  name.className = 'name'
+  name.textContent = attachment.fileName
+
+  button.append(action, name)
 
   button.addEventListener('click', (event) => {
     // Chat's own click handlers would otherwise start a download.
@@ -122,22 +149,8 @@ function isSameOrigin(url: string): boolean {
 
 function requestViaServiceWorker(url: string): Promise<FetchAttachmentResponse> {
   const request: FetchAttachmentRequest = { type: 'FETCH_ATTACHMENT', url, maxBytes: settings.maxBytes }
-
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(request, (response: FetchAttachmentResponse | undefined) => {
-      // A dead service worker surfaces here rather than as a thrown error.
-      const lastError = chrome.runtime.lastError
-      if (lastError) {
-        reject(new Error(lastError.message ?? 'Extension background is unavailable.'))
-        return
-      }
-      if (!response) {
-        reject(new Error('No response from the extension background.'))
-        return
-      }
-      resolve(response)
-    })
-  })
+  // Retries the shutting-down-worker race; see `background-request.ts`.
+  return requestFromBackground<FetchAttachmentResponse>(request)
 }
 
 /**

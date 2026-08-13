@@ -212,7 +212,7 @@
         letter-spacing: 0.06em;
         text-transform: uppercase;
       }
-      input[type="url"], input[type="number"], select {
+      input[type="url"], input[type="number"], select, textarea {
         padding: 9px 11px;
         width: 100%;
         border: 1px solid var(--line);
@@ -222,7 +222,9 @@
         font: 13px var(--mono);
       }
       input[type="number"] { max-width: 130px; }
-      input:focus-visible, select:focus-visible {
+      textarea { min-height: 118px; line-height: 1.7; resize: vertical; }
+      textarea:disabled { opacity: 0.45; cursor: not-allowed; }
+      input:focus-visible, select:focus-visible, textarea:focus-visible {
         outline: none;
         border-color: var(--accent);
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
@@ -302,9 +304,10 @@
         <div class="nav-label">Sections</div>
         <a href="#files"><span class="num">01</span> File types</a>
         <a href="#scripts"><span class="num">02</span> Scripts</a>
-        <a href="#diagrams"><span class="num">03</span> Diagrams</a>
-        <a href="#json"><span class="num">04</span> JSON</a>
-        <a href="#limits"><span class="num">05</span> Limits</a>
+        <a href="#assets"><span class="num">03</span> Linked resources</a>
+        <a href="#diagrams"><span class="num">04</span> Diagrams</a>
+        <a href="#json"><span class="num">05</span> JSON</a>
+        <a href="#limits"><span class="num">06</span> Limits</a>
       </nav>
 
       <main id="content">
@@ -351,7 +354,7 @@
               <input type="checkbox" id="previewPlantUml" />
             </div>
             <p class="note">
-              Whether these two are actually <em>drawn</em> is section 03. With drawing off they
+              Whether these two are actually <em>drawn</em> is section 04. With drawing off they
               still open, showing the file’s source — which for PlantUML means nothing is sent
               to a server.
             </p>
@@ -379,8 +382,45 @@
             </div>
           </section>
 
+          <section id="assets">
+            <h2><span class="num">03</span> Linked resources in HTML previews</h2>
+            <p class="note">
+              A page that gets its styling from a CDN shows up as unformatted text, because a
+              preview is not allowed to reach the network — that is what stops a file from
+              sending anything out. Switch this on and the extension downloads what the file
+              links to and builds it in beforehand, so the page looks right while still being
+              unable to reach anything itself.
+            </p>
+            <p class="note">
+              Off unless you switch it on. The hosts listed below are only suggestions until
+              then — nothing is downloaded, and Chrome is not asked for anything. Turn it back
+              off and the permissions are handed back.
+            </p>
+            <div class="row">
+              <div class="text">
+                <div class="name">Load linked stylesheets, fonts, images and scripts</div>
+                <div class="desc">
+                  Only from the hosts below, only over <code>https</code>, and never with your
+                  cookies. Scripts still do not run until you allow them for that preview.
+                </div>
+              </div>
+              <input type="checkbox" id="remoteAssets" />
+            </div>
+            <div class="field">
+              <label for="remoteAssetHosts">Allowed hosts — one per line</label>
+              <textarea id="remoteAssetHosts" spellcheck="false"
+                        placeholder="cdn.jsdelivr.net&#10;fonts.googleapis.com"></textarea>
+            </div>
+            <div class="callout" id="remoteAssetsWarning" hidden>
+              A host on this list learns that you opened a file linking to it — your IP address
+              and roughly when. Saving asks Chrome for permission to reach each one. Keep the
+              list to CDNs you recognise; anything else in a file is still blocked.
+            </div>
+            <div class="error" id="remoteAssetsError" hidden></div>
+          </section>
+
           <section id="diagrams">
-            <h2><span class="num">03</span> Drawing diagrams</h2>
+            <h2><span class="num">04</span> Drawing diagrams</h2>
             <p class="note">
               Applies to both fenced blocks inside a Markdown file and whole
               <code>.mmd</code> / <code>.puml</code> attachments. Switched off, the source is
@@ -416,7 +456,7 @@
           </section>
 
           <section id="json">
-            <h2><span class="num">04</span> JSON</h2>
+            <h2><span class="num">05</span> JSON</h2>
             <p class="note">The tree collapses and expands per node; this sets where it starts.</p>
             <div class="field">
               <label for="jsonExpand">Initial depth</label>
@@ -429,7 +469,7 @@
           </section>
 
           <section id="limits">
-            <h2><span class="num">05</span> Limits</h2>
+            <h2><span class="num">06</span> Limits</h2>
             <p class="note">Large files are refused rather than previewed — the browser struggles long before the network does.</p>
             <div class="field">
               <label for="maxMb">Maximum file size</label>

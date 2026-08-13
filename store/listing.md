@@ -76,7 +76,9 @@ hostile.
 • It cannot phone home. Network access inside a preview is switched off at the
   Content Security Policy level: no fetch, no XHR, no WebSocket, no form posts,
   no popups, no remote images, fonts or scripts. Nothing a previewed file
-  observes can leave your browser.
+  observes can leave your browser. That holds whether or not you switch on the
+  linked-resources setting below — it never gives the page network access, it
+  only has the extension fetch and embed the files beforehand.
 • Its scripts do not run until you say so. HTML previews start fully static and
   gain scripting only when you click Enable scripts on that specific preview. A
   page that cannot run code cannot capture what you type, which is what makes a
@@ -84,13 +86,24 @@ hostile.
   such toggle at all — the extension builds those documents itself and escapes
   every tag, so a JSON value containing <script> is just characters on screen.
 
-The cost of that last rule, stated plainly: files that pull images, fonts or
-libraries from a CDN will render without them.
+LINKED RESOURCES FROM A CDN
+
+The cost of that last rule, stated plainly: a file that pulls its styling, fonts
+or scripts from a CDN renders without them, as unformatted text.
+
+If you would rather see those files the way they were written, you can switch it
+on and list the hosts you trust — the common CDNs are suggested for you. The
+extension then downloads what the file links to, over https and without your
+cookies, and builds it into the preview before showing it. The page itself still
+reaches nothing; what changes is that a host you allowed can tell you opened a
+file linking to it. That is why it is off until you turn it on, limited to hosts
+you name, and why turning it back off hands those permissions back.
 
 SETTINGS
 
 Open the options page from chrome://extensions to choose which file types get a
 Preview button, whether HTML previews start with scripts enabled (off by
+default), whether linked resources are loaded and from which hosts (off by
 default), whether Mermaid and PlantUML render, which PlantUML server to use, how
 much of a JSON tree opens by default, and the maximum file size to preview
 (5 MB by default).
@@ -98,10 +111,11 @@ much of a JSON tree opens by default, and the maximum file size to preview
 PRIVACY
 
 The extension has no analytics, no account, no server of its own, and sends
-nothing anywhere except the two cases it tells you about: fetching the
-attachment you asked to preview from Google's own servers, and — if you leave
-PlantUML enabled — the source of a PlantUML diagram to the PlantUML server you
-have configured. Full policy: https://hblabvn.github.io/gchat-preview-files/
+nothing anywhere except the three cases it tells you about: fetching the
+attachment you asked to preview from Google's own servers; if you leave PlantUML
+enabled, the source of a PlantUML diagram to the PlantUML server you have
+configured; and if you switch linked resources on, the files an HTML attachment
+links to, from the hosts you allowed. Full policy: https://hblab-dieuhd.github.io/gchat-preview-files/
 
 Not affiliated with, endorsed by, or sponsored by Google. Google Chat is a
 trademark of Google LLC.
@@ -165,10 +179,11 @@ Paste each into the box next to the matching permission.
 
 ```
 Stores the user's own preferences from the options page — which file types get a
-Preview button, whether HTML previews start with scripts enabled, whether Mermaid
-and PlantUML diagrams render, the PlantUML server address, the JSON expand depth
-and the maximum file size. Preference data only; no file content and no user data
-is ever written to storage.
+Preview button, whether HTML previews start with scripts enabled, whether linked
+resources are loaded and from which hosts, whether Mermaid and PlantUML diagrams
+render, the PlantUML server address, the JSON expand depth and the maximum file
+size. Preference data only; no file content and no user data is ever written to
+storage.
 ```
 
 **Host permission — `https://chat.google.com/*`, `https://mail.google.com/*`**
@@ -205,12 +220,30 @@ file.
 **Optional host permission — `https://*/*`**
 
 ```
-Optional and never requested at install time. It exists solely so a user who
-types their own self-hosted PlantUML server address into the options page can
-grant access to that one host. Chrome's optional-permission flow requests only
-the specific origin the user typed, from inside the Save click, and the setting is
-abandoned if the user declines. The extension never requests this pattern in full
-and has no code path that reaches any host the user has not configured.
+Optional, never requested at install time, and never requested in full. It exists
+so that a user can name specific hosts in the options page and grant access to
+those hosts only. There are two such settings:
+
+1. A self-hosted PlantUML server, so a team can draw diagrams without sending the
+   source to the public plantuml.com.
+2. Linked resources in HTML previews. An HTML attachment often references a
+   stylesheet, font, image or script on a CDN, and the extension's Content
+   Security Policy blocks the preview from loading any of it, so such a file
+   renders as unformatted text. If the user switches this on, the extension
+   fetches those URLs itself — with credentials omitted — and embeds the bytes in
+   the document before rendering it. This is off by default and limited to a list
+   of hosts the user maintains.
+
+In both cases Chrome's optional-permission flow requests only the specific origins
+the user typed, from inside the Save click, and the setting is abandoned if the
+user declines. Switching a setting off releases the origins it was granted. The
+extension never requests this pattern in full and has no code path that reaches
+any host the user has not configured.
+
+Note this does not loosen the preview's sandbox: the CSP stays default-src 'none'
+with connect-src 'none', so previewed content still cannot reach any host itself.
+Only the extension fetches, only URLs already written into the file by its sender,
+and only before the document is rendered.
 ```
 
 ### Remote code

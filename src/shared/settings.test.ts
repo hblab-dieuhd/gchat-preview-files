@@ -3,8 +3,12 @@ import assert from 'node:assert/strict'
 import {
   DEFAULT_SETTINGS,
   MAX_ALLOWED_BYTES,
+  assetHostPatterns,
+  isAssetUrlAllowed,
   isKindEnabled,
   normalise,
+  normaliseHost,
+  normaliseHosts,
   normaliseServer,
   serverOriginPattern,
 } from './settings.ts'
@@ -88,4 +92,74 @@ test('normalise keeps the new file-type switches out of the defaults trap', () =
 
   assert.equal(normalise({ previewMermaid: 'yes' }).previewMermaid, true, 'a bad value falls back')
   assert.equal(normalise({ previewPlantUml: false }).previewPlantUml, false, 'a real false survives')
+})
+
+/**
+ * The asset allowlist is the only thing standing between "the extension fetches
+ * what a file asks for" and "a file sent by anyone can make the extension reach
+ * any host". These tests are about that boundary, not about tidiness.
+ */
+
+test('loading linked resources is off until asked for', () => {
+  assert.equal(DEFAULT_SETTINGS.remoteAssets, false, 'no egress without a decision')
+  // A default list is not a grant: with the switch off nothing on it is fetched,
+  // and turning it on is what asks Chrome for the host permissions.
+  assert.ok(DEFAULT_SETTINGS.remoteAssetHosts.includes('cdn.jsdelivr.net'))
+  assert.ok(
+    DEFAULT_SETTINGS.remoteAssetHosts.includes('fonts.gstatic.com'),
+    'the Google Fonts stylesheet is useless without the host its url()s point at',
+  )
+})
+
+test('a host entry is accepted as a bare name, a wildcard, or a pasted URL', () => {
+  assert.equal(normaliseHost('CDN.Example.COM'), 'cdn.example.com')
+  assert.equal(normaliseHost('*.example.com'), '*.example.com')
+  assert.equal(normaliseHost('https://cdn.example.com/lib@3/x.css?v=1'), 'cdn.example.com')
+  // Match patterns carry no port, so one that survived here would never match.
+  assert.equal(normaliseHost('cdn.example.com:8443'), 'cdn.example.com')
+})
+
+test('anything that is not a host name is dropped rather than stored', () => {
+  assert.equal(normaliseHost('*'), null, 'a bare wildcard is the thing the list exists to prevent')
+  assert.equal(normaliseHost('*.com'), null, 'a whole TLD is not a host')
+  assert.equal(normaliseHost('localhost'), null, 'no dot, no host')
+  assert.equal(normaliseHost('a b.com'), null)
+  assert.equal(normaliseHost(''), null)
+  assert.equal(normaliseHost(42), null)
+})
+
+test('normaliseHosts drops bad entries and duplicates but keeps order', () => {
+  assert.deepEqual(
+    normaliseHosts(['b.com', 'nope', 'B.com', 'https://a.com/x', '']),
+    ['b.com', 'a.com'],
+  )
+  // A profile written before this existed has no key at all; it gets the defaults
+  // rather than an empty list, which would silently disable the feature.
+  assert.deepEqual(normaliseHosts(undefined), DEFAULT_SETTINGS.remoteAssetHosts)
+  assert.deepEqual(normalise({}).remoteAssetHosts, DEFAULT_SETTINGS.remoteAssetHosts)
+  assert.deepEqual(normalise({ remoteAssetHosts: [] }).remoteAssetHosts, [])
+})
+
+test('only https on a listed host is allowed', () => {
+  const hosts = ['cdn.example.com', '*.fonts.example.com']
+
+  assert.equal(isAssetUrlAllowed('https://cdn.example.com/a.css', hosts), true)
+  assert.equal(isAssetUrlAllowed('https://a.fonts.example.com/f.woff2', hosts), true)
+  assert.equal(isAssetUrlAllowed('https://fonts.example.com/f.woff2', hosts), true)
+
+  assert.equal(isAssetUrlAllowed('http://cdn.example.com/a.css', hosts), false, 'https only')
+  assert.equal(isAssetUrlAllowed('https://evil.net/a.css', hosts), false)
+  // The one that a naive endsWith would wave through.
+  assert.equal(isAssetUrlAllowed('https://notfonts.example.com/x', hosts), false)
+  assert.equal(isAssetUrlAllowed('https://cdn.example.com.evil.net/x', hosts), false)
+  assert.equal(isAssetUrlAllowed('data:text/css,body{}', hosts), false)
+  assert.equal(isAssetUrlAllowed('not a url', hosts), false)
+  assert.equal(isAssetUrlAllowed('https://cdn.example.com/a.css', []), false, 'an empty list allows nothing')
+})
+
+test('asset permission patterns cover the origin only', () => {
+  assert.deepEqual(assetHostPatterns(['cdn.example.com', '*.a.com']), [
+    'https://cdn.example.com/*',
+    'https://*.a.com/*',
+  ])
 })

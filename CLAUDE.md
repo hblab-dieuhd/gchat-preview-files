@@ -17,6 +17,7 @@ npm run build:all   # build only, skips typecheck/test/clean
 npm run typecheck   # tsc --noEmit
 npm test            # node --test, no test framework dependency
 npm run dev         # all five bundles in parallel --watch mode
+npm run verify      # build, then relaunch the test Chrome with the fresh dist/
 npm run icons       # regenerate public/icons/*.png from assets/*.svg
 npm run clean       # rm -rf dist
 ```
@@ -28,17 +29,29 @@ Tests run on Node's built-in runner against `.ts` sources directly via Node 24 t
 
 Run one file with `node --test src/content/detector.test.ts`. Anything needing a DOM cannot be tested this way, which is why the diagram renderers are injected callbacks rather than imports.
 
-The five suites and what each is guarding:
+The seven suites and what each is guarding:
 
 | File | Guards |
 | --- | --- |
 | [src/content/detector.test.ts](src/content/detector.test.ts) | Attachment recognition and URL rewriting — the `attachment_token` surviving byte for byte |
+| [src/content/background-request.test.ts](src/content/background-request.test.ts) | The service-worker wake retry, and that only the missing-receiver error is retried |
 | [src/sandbox/document.test.ts](src/sandbox/document.test.ts) | Escaping, asserting on the *absence* of live markup; diagram injection and fallbacks |
+| [src/sandbox/inline-assets.test.ts](src/sandbox/inline-assets.test.ts) | That the allowlist is never fetched past, and that untouched bytes stay untouched |
 | [src/sandbox/markdown.test.ts](src/sandbox/markdown.test.ts) | PlantUML URL encoding — the deflate round-trip, the length ceiling, the hex fallback |
 | [src/sandbox/highlight.test.ts](src/sandbox/highlight.test.ts) | That hljs escapes as it tokenises — its output is inserted *unescaped* |
 | [src/shared/settings.test.ts](src/shared/settings.test.ts) | `normalise()` rejecting bad stored values, including non-https diagram servers |
 
 Load the extension by pointing `chrome://extensions` → "Load unpacked" at `dist/`. After a rebuild, click the reload icon on the extension card, then hard-reload the Google Chat tab — `npm run dev` rebuilds files but cannot reload the extension itself.
+
+### Verifying against live Chat
+
+`npm run verify` builds and then runs [scripts/test-chrome.mjs](scripts/test-chrome.mjs), which drives a dedicated Chrome profile at `~/.gchat-preview-test-profile` over CDP on port 9222. The `verify-live` skill is the checklist of what to click.
+
+Three things about it are not free choices:
+
+- **`--load-extension` no longer works.** Verified against Chrome 150: with the switch, and again with the old `--disable-features=DisableLoadExtensionCommandLineSwitch` escape hatch, the profile ends up holding only the three component extensions and every `chrome-extension://` URL returns `ERR_BLOCKED_BY_CLIENT`. The supported route is launching with `--enable-unsafe-extension-debugging` and calling CDP `Extensions.loadUnpacked`. The failure mode is silent — the space loads and only the Preview button is missing, which looks exactly like a detection regression, so confirm the extension is installed before touching `detector.ts`.
+- **Relaunching *is* the reload — except for the service worker.** Chrome reads an unpacked extension from disk at load time, so killing the browser and loading again picks up the newest `dist/`. Nothing hot-reloads; a preview showing old behaviour is usually a browser that was never relaunched. The worker is the exception: at startup `Extensions.loadUnpacked` races Chrome's restore of the profile's extension state and the **previous** build's `background.js` can keep running, so pages and content script are new while the worker is old. A message type added in this build then has no listener, and the only symptom is `The message port closed before a response was received` — which reads as a broken feature. `refreshServiceWorker` in the launcher calls `loadUnpacked` a second time once the browser has settled, which does replace it. Do not try to *verify* the running script instead: that needs `Debugger.enable` on the worker target, and Chrome pauses an extension worker when a debugger attaches, hanging the launch.
+- **The profile lives outside the repo** so it survives `npm run clean` and `git clean -fdx`, and it is deliberately *not* the everyday profile: Chrome refuses `--remote-debugging-port` on the default profile dir, and an open debugging port on a profile full of personal cookies is a worse trade than signing in once here. That sign-in is manual and cannot be scripted.
 
 ## Build system
 
@@ -69,7 +82,7 @@ background.js          content.js                        sandbox.html
 ```
 
 1. **[src/content/index.ts](src/content/index.ts)** — detects attachments, injects the button, obtains the bytes, hands the string to the sandbox. It is also the only context that can read settings, and the relay for diagram fetches. It must never insert attachment content into the Google Chat DOM (no `innerHTML` on the host page).
-2. **[src/background/index.ts](src/background/index.ts)** — the only context with `host_permissions`, so the only one CORS does not apply to. Fetches attachments (tried *first*, see below) and PlantUML diagrams.
+2. **[src/background/index.ts](src/background/index.ts)** — the only context with `host_permissions`, so the only one CORS does not apply to. Fetches attachments (tried *first*, see below), PlantUML diagrams, and the resources an HTML file links to.
 3. **[public/sandbox.html](public/sandbox.html)** + **[src/sandbox/sandbox.ts](src/sandbox/sandbox.ts)** — a manifest-declared sandboxed page (opaque origin, no `chrome.*` APIs) that puts the document into a *nested* iframe via `srcdoc`. The nesting is required: the outer page keeps its postMessage listener alive, and the attachment gets its own document so its scripts, when enabled, run in the inner frame's opaque origin.
 
 Shared message contracts live in [src/shared/protocol.ts](src/shared/protocol.ts).
@@ -95,6 +108,19 @@ Both contexts are tried for attachments, **service worker first**, and both call
 - The **content script** is the only context that sends `Origin`/`Referer`. A service worker `fetch` cannot set `Referer` at all (forbidden header), so if the Chat API starts requiring it, this path is the one that still works.
 
 When both fail, **both errors are reported**. An earlier version returned only the page-context error and hid the worker's entirely, which made a CORS failure look like an API rejection and cost a full debugging round.
+
+Since the worker is the path that actually works, losing it loses the preview: the page fallback reaches the endpoint but `DOWNLOAD_URL` dies at the redirect, `FIFE_URL` answers 404 and `MEDIA_URL` 500. So a report reading `In the background — Could not establish connection. Receiving end does not exist. || In the page — Could not download the attachment. Tried — …` is **one** failure, not two: the worker never answered, and the three page attempts below it are the expected CORS noise, not a detection or URL regression.
+
+### Waking the service worker
+
+Nothing in this extension gives the worker background work, so it is idle-terminated after ~30 seconds and every preview starts by waking it. Chrome normally does that transparently — except for a message that lands while the worker is *shutting down*, which is delivered to a context whose listeners are already gone and comes back as `Could not establish connection. Receiving end does not exist.`
+
+That window is a few milliseconds wide, which is why the failure looked like it affected only certain people: it is per-attempt luck, not per-account state. [src/content/background-request.ts](src/content/background-request.ts) is the single sender for both `FETCH_ATTACHMENT` and `FETCH_DIAGRAM`, and it retries that error three times with a growing backoff — the second send reaches a worker that has finished shutting down, which Chrome then starts cleanly. Do not go back to calling `chrome.runtime.sendMessage` directly.
+
+Two things it deliberately does not do:
+
+- **It retries only the missing-receiver error.** Anything else the worker says — an HTTP status, a size rejection — is an answer, and re-asking is just slower.
+- **It never surfaces Chrome's wording.** Both terminal messages name the fix instead: reload the tab when `chrome.runtime.id` is gone (the extension was updated under a live page), reload the extension when the worker will not start at all. The raw string produced bug reports rather than a reload.
 
 ### postMessage validation
 
@@ -146,6 +172,23 @@ The two renderers work in opposite ways and neither choice is arbitrary.
 
 `buildDocument` is async and takes `renderMermaid` and `fetchDiagram` as **injected** callbacks rather than importing either path directly. That is what keeps the 3.2 MB mermaid bundle out of documents that do not need it, and what lets `document.test.ts` test the whole path in Node with fakes and no DOM. A diagram that fails falls back to showing its source — one bad diagram must not cost the reader the document.
 
+## Linked resources in an HTML file
+
+An `.html` attachment that gets its styling from a CDN used to render as unformatted text, because the sandbox CSP names no host anywhere. [src/sandbox/inline-assets.ts](src/sandbox/inline-assets.ts) fixes that **without touching the CSP**: the service worker fetches each linked resource and the bytes are built into the document as a `<style>`, an inline script, or a `data:` URI. Off by default; `remoteAssets` plus a host allowlist turns it on.
+
+The distinction that makes this acceptable is *static versus runtime egress*. The URLs fetched are the ones the sender wrote into the file, fetched once, before a line of the page runs, with `credentials: 'omit'`. An allowed host learns the file was opened; nothing the page computes at runtime can be sent anywhere, because the document still reaches no host. Adding the CDN to `img-src`/`style-src` instead would have given every previewed file a live beacon — see the security section.
+
+Four things not to undo:
+
+- **The allowlist is enforced in the content script**, not by the host permission. Most CDNs answer `Access-Control-Allow-Origin: *`, so the worker's fetch would succeed from any host with or without permission. The permission is where the user consents; `isAssetUrlAllowed` is what actually gates it. The sandbox gets the host list too, but only to avoid asking for what will be refused — it holds untrusted content and is never the authority.
+- **It is string surgery, not a `DOMParser` round-trip.** `html` is the one kind whose file *is* the document, and re-serialising a stranger's markup rewrites bytes nobody asked to have rewritten. Every byte outside a replaced span survives; a tag the scanner cannot parse is left alone, so the failure mode is "not inlined", never "corrupted". It also keeps the module testable under `node --test`, which has no DOM.
+- **The scanning regex matches whole elements in document order**, comments first, with `<script>`/`<style>` bodies consumed. That is what stops a `<link>` inside a comment or inside a JS string from being rewritten, and a test pins each. The attribute region is quote-aware — a plain `[^>]*` stops at the `>` in `<img alt="a>b" src="…">`, finds no `src`, and silently does nothing.
+- **Fetched text is masked before it goes into a `<script>` or `<style>`.** A minified bundle containing the literal `</script>` would otherwise close the element and spill the rest of the file into the page as markup. `<\/script` means the same thing inside a JS or CSS string and was already a syntax error anywhere else.
+
+Known gaps, all deliberate: relative URLs (a `srcdoc` document has no base to resolve against), `url()` inside a `style="…"` attribute, `<source>` in `<picture>`/`<video>`, and `async`/`defer` ordering — an inlined script runs where it sits, because an inline script cannot be deferred. `<img srcset>` is emptied rather than rewritten, so the browser falls back to the `src` that did get inlined; leaving it would mean the inlined image never shows.
+
+A blocked host is reported to the modal's warning bar via `ASSET_REPORT`, never written into the document. Without it a file whose CDN is not on the list renders unstyled and looks simply broken, with nothing naming the host to add.
+
 ## The JSON tree has no JavaScript
 
 The frame rendering it is built with `sandbox=""`, so the tree is `<details>`/`<summary>` and nothing else. Do not "improve" it with a click handler — it would silently do nothing.
@@ -161,6 +204,8 @@ Two limits in [src/sandbox/json.ts](src/sandbox/json.ts) worth knowing before ch
 - **Defaults reproduce the pre-settings behaviour exactly**, so an install that never opens the page behaves as before. `allowScriptsByDefault: false` is the one to leave alone — a static render cannot capture keystrokes, and that is what makes a fake login form in an attachment useless.
 - **Only the content script reads storage.** The sandbox page has no `chrome.*` APIs, so whatever it needs (`DiagramSettings`) travels in the render message. Do not try to read settings from the sandbox.
 - **`normalise()` is not decoration.** Storage survives upgrades, syncs from other machines, and can be hand-edited, so every field is type-checked and clamped on the way out. A non-https PlantUML server is rejected rather than passed through — the source of every diagram travels in that URL.
+- **The asset allowlist follows the same permission dance**, in one call rather than per host: `ensureAssetPermissions` checks the whole list with a single `contains` and requests the whole list with a single `request`, because a per-host loop would put an `await` between the gesture and the prompt for every host after the first. A declined prompt abandons the save. Entries are normalised by `normaliseHost`, which accepts a pasted URL and a leading `*.` but rejects a bare `*` and a whole-TLD wildcard; a line it rejects is named back to the user rather than silently dropped.
+- **The grant does not outlive the feature.** `releaseAssetPermissions` runs after every save and after a reset, handing back the host permissions for asset hosts that were switched off or deleted from the list — otherwise turning `remoteAssets` on once would leave the extension holding standing access to those CDNs for good. It runs *after* `saveSettings`, so a save that fails cannot drop a grant the stored allowlist still names, and it never touches the `host_permissions` origins (which `remove` rejects) or the current `plantUmlServer` origin (a separate grant that can collide with an asset host). The default host list grants nothing on its own — it is suggestions until the switch is on.
 - **A custom PlantUML server needs a host permission**, and Chrome only grants optional permissions from a user gesture. The request therefore happens *inside* the save click, and the save is abandoned if declined; storing a server the extension cannot reach would produce broken diagrams with no explanation. `https://www.plantuml.com/*` is in `host_permissions` so the default works with no prompt.
 
 Layout and behaviour worth preserving:
@@ -202,7 +247,13 @@ So the URL is self-describing and is the only thing worth matching on:
 - **The accepted parameter combination is undocumented.** `downloadUrlCandidates` returns an ordered list — varying `url_type` across `DOWNLOAD_URL`/`FIFE_URL`/`MEDIA_URL` and whether `allow_caching` is carried over — and the fetcher tries each until one returns non-image bytes. In practice `DOWNLOAD_URL` through the service worker is the one that works; the others are kept as fallbacks. Every failed attempt is reported with its `url_type` *and* host/path; do not swallow or shorten that, it is the only diagnostic available. It deliberately excludes the query string, which carries the session-bearing `attachment_token`.
 - The message list is **virtualized** — Chat mounts and unmounts messages while scrolling, so a one-shot scan at load time misses nearly everything. `observeHtmlAttachments` runs a debounced `MutationObserver` over `document.body`; processed elements are tagged with `data-gchat-html-preview` to stay idempotent.
 
-**Verification status.** HTML previews are confirmed working end to end against a live Google Workspace account. The Markdown, JSON and diagram paths — including standalone `.mmd`/`.puml` files — have been rendered through `buildDocument` in headless Chrome, but not yet opened from a live Chat attachment.
+**Verification status.** All five kinds are confirmed end to end against a live account, from a real Chat attachment, using the fixtures in [samples/](samples/) — 2026-07-31, Chrome 150. What was actually observed: scripts off until the toggle is used and the remote image broken *both* before and after enabling them; the double-escape trap rendering `<b>` rather than `&lt;b&gt;`; all three hostile link schemes losing their href while the https one kept it; highlighting on tagged fences with unknown-language and untagged fences staying plain; the JSON tree opening to depth 2 with array index labels and a working expand-all; a 6.4 KB `.puml` drawing, which only the deflate URL can do; and with diagrams switched off, the `.puml` showing source with nothing sent. The attachment frame was confirmed to carry `sandbox=""` and its only image to be a `data:` URI.
+
+**`remoteAssets` — verified in the browser, not yet through Chat.** 2026-08-13, Chrome 150, against [samples/sample-cdn.html](samples/sample-cdn.html) and the real CDNs. The options page granted all six host permissions from the Save click and stored the settings. The shipped sandbox page, `inline-assets.ts` and the service worker then reported `inlined 7 · failed 0 · blocked [cdn.skypack.dev]`: both allowed `<link>`s became `<style>` blocks, the `<script src>` was inlined, the `<img>` became a `data:` URI with `srcset` emptied, and `document.fonts` showed `Bungee: loaded` — the font file lives behind a `url()` *inside* the fetched Google Fonts sheet, so that is the recursive path working. The blocked list named `cdn.skypack.dev` and neither decoy, which is the comment and string-literal handling confirmed against a browser parser. Scripts stayed off until enabled, then the inlined CDN bundle ran. With the switch off the same file kept all three `<link>`s, the remote `<script src>`, its `srcset` and an unloaded image — the pre-feature behaviour, unchanged.
+
+What that run did **not** cover: the content script's own relay and allowlist check (a stand-in was used — the test profile was signed out), so detection, the Preview button and the modal's warning-bar wording are still unverified for this path, as is the permission prompt's appearance.
+
+Still **not** verified live: the detailed-thread card (every fixture sat in the normal message view — this is the layout that has silently broken before), Chat embedded in Gmail, invalid JSON and the `MAX_NODES` fallback, and form submission from an HTML attachment.
 
 ## Icons
 
@@ -227,8 +278,10 @@ Rule 1 was the fix for a real hole: with `img-src *`, an attachment could keylog
 
 PlantUML looks like it should be an exception to rule 1, and an earlier version made it one by allowlisting `https://www.plantuml.com` in `img-src`. It no longer is: the service worker fetches the diagram and the document displays a `data:` URI, so no host is reachable from previewed content. Resist re-adding a host to `img-src` — it would hand every previewed file a beacon channel to buy a feature that already works without one.
 
+Loading an HTML file's linked CSS, fonts, images and scripts is the same story a third time, and the one most likely to be "fixed" the wrong way. The tempting change is `style-src https://cdn…` — which reopens exactly the hole above, because a stylesheet can encode data into a selector's `url()` and the CSP no longer stops the request. What ships instead fetches through the worker and inlines the bytes, so the CSP is unchanged and previewed content still reaches no host. **It does move the threat model**, and precisely here: with `remoteAssets` on, hosts named in a file learn the recipient's IP and that the file was opened, at open time. That is static, author-known egress — it cannot carry anything the page observed. It is off by default, limited to an allowlist, and each host is a permission the user granted. Widening it to "any https origin" would collapse that distinction and should not be done quietly.
+
 The frame is rebuilt from scratch on each render in [src/sandbox/sandbox.ts](src/sandbox/sandbox.ts). The `sandbox` attribute is only read at load time, so mutating a live frame would silently keep the old permissions.
 
-**Known residual risks**, all low-bandwidth and none reaching the user's account: DNS-prefetch-style hostname leaks, WebRTC if Chrome's `webrtc` CSP directive is absent, timing/existence signals from the user opening the file, and resource exhaustion (an attachment can hang its own frame). Remote images, remote fonts, and CDN scripts do not render — that is the accepted cost of rule 1. PlantUML source reaching a third-party server is a disclosure the user opts into, per the settings.
+**Known residual risks**, all low-bandwidth and none reaching the user's account: DNS-prefetch-style hostname leaks, WebRTC if Chrome's `webrtc` CSP directive is absent, timing/existence signals from the user opening the file, and resource exhaustion (an attachment can hang its own frame). With `remoteAssets` off — the default — remote images, remote fonts and CDN scripts do not render at all, which is the accepted cost of rule 1. PlantUML source reaching a third-party server, and an allowed CDN learning that a file was opened, are disclosures the user opts into, per the settings.
 
 Any change to these CSP directives or sandbox flags changes the threat model. Say so explicitly rather than adjusting them in passing.

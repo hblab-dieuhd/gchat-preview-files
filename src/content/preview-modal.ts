@@ -1,13 +1,17 @@
 import {
   isSandboxMessage,
+  type AssetResultMessage,
   type AttachmentKind,
   type DiagramResultMessage,
+  type FetchAssetRequest,
+  type FetchAssetResponse,
   type FetchDiagramRequest,
   type FetchDiagramResponse,
   type JsonExpand,
   type RenderAttachmentMessage,
 } from '../shared/protocol.ts'
-import type { Settings } from '../shared/settings.ts'
+import { isAssetUrlAllowed, type Settings } from '../shared/settings.ts'
+import { requestFromBackground } from './background-request.ts'
 
 /**
  * The modal that hosts the preview.
@@ -149,6 +153,19 @@ const BADGES: Record<AttachmentKind, string> = {
  * Saying so on the preview itself is the only place the user sees it happen.
  */
 function warningFor(kind: AttachmentKind, settings: Settings): string {
+  // With asset inlining on, "cut off from the internet" is no longer the whole
+  // truth: the extension fetched what the file links to before rendering it. The
+  // page still cannot reach anything, and the difference is worth stating exactly.
+  if (kind === 'html' && settings.remoteAssets) {
+    return (
+      'This file was sent by someone else. Stylesheets, fonts, images and scripts it links ' +
+      'to on your allowed hosts were downloaded and built into this preview, so those hosts ' +
+      'can tell you opened it. The preview itself still runs cut off from your Google account ' +
+      'and cannot send anything out — but treat what it displays as untrusted, and never type ' +
+      'passwords into it.'
+    )
+  }
+
   if (kind !== 'plantuml') return WARNINGS[kind]
 
   if (!settings.plantUmlEnabled) {
@@ -178,16 +195,46 @@ export interface PreviewHandle {
 function fetchDiagram(url: string): Promise<FetchDiagramResponse> {
   const request: FetchDiagramRequest = { type: 'FETCH_DIAGRAM', url }
 
-  return new Promise((resolve) => {
-    chrome.runtime.sendMessage(request, (response: FetchDiagramResponse | undefined) => {
-      const lastError = chrome.runtime.lastError
-      if (lastError || !response) {
-        resolve({ ok: false, error: lastError?.message ?? 'The extension background is unavailable.' })
-        return
-      }
-      resolve(response)
-    })
-  })
+  // Same worker-wake retry as the attachment path. A diagram is more exposed to
+  // it than an attachment is: several arrive at once from one document, so the
+  // first can be what starts the worker while the rest race its shutdown.
+  return requestFromBackground<FetchDiagramResponse>(request).catch((error: unknown) => ({
+    ok: false as const,
+    error: error instanceof Error ? error.message : String(error),
+  }))
+}
+
+/**
+ * Fetches one resource an HTML attachment links to — but only from a host the
+ * user has allowed.
+ *
+ * This check is the enforcement point, not the host permission. Most CDNs answer
+ * `Access-Control-Allow-Origin: *`, so the service worker's fetch would succeed
+ * from anywhere; the permission is where the user consents, this is where the
+ * allowlist is applied. It runs here rather than in the sandbox because the
+ * sandbox is the context holding untrusted content and cannot read settings.
+ */
+function fetchAsset(url: string, settings: Settings): Promise<FetchAssetResponse> {
+  if (!settings.remoteAssets) {
+    return Promise.resolve({ ok: false as const, error: 'Loading linked resources is switched off.' })
+  }
+
+  if (!isAssetUrlAllowed(url, settings.remoteAssetHosts)) {
+    return Promise.resolve({ ok: false as const, error: 'That host is not on the allowed list.' })
+  }
+
+  const request: FetchAssetRequest = { type: 'FETCH_ASSET', url }
+
+  return requestFromBackground<FetchAssetResponse>(request).catch((error: unknown) => ({
+    ok: false as const,
+    error: error instanceof Error ? error.message : String(error),
+  }))
+}
+
+/** "cdn.a, cdn.b and cdn.c", so the note reads as a sentence rather than a list. */
+function listHosts(hosts: string[]): string {
+  if (hosts.length === 1) return hosts[0]!
+  return `${hosts.slice(0, -1).join(', ')} and ${hosts[hosts.length - 1]!}`
 }
 
 export function openPreview(
@@ -286,6 +333,10 @@ export function openPreview(
         plantUml: settings.plantUmlEnabled,
         plantUmlServer: settings.plantUmlServer,
       },
+      assets: {
+        enabled: kind === 'html' && settings.remoteAssets,
+        hosts: settings.remoteAssetHosts,
+      },
       allowScripts,
     }
     // targetOrigin must be "*": an opaque origin cannot be named.
@@ -307,6 +358,37 @@ export function openPreview(
         const reply: DiagramResultMessage = { type: 'DIAGRAM_RESULT', id, result }
         frame.contentWindow?.postMessage(reply, '*')
       })
+      return
+    }
+
+    if (event.data.type === 'ASSET_REQUEST') {
+      const { id, url } = event.data
+      void fetchAsset(url, settings).then((result) => {
+        const reply: AssetResultMessage = { type: 'ASSET_RESULT', id, result }
+        frame.contentWindow?.postMessage(reply, '*')
+      })
+      return
+    }
+
+    // A file whose CDN is not allowed renders unstyled and simply looks broken,
+    // so the warning bar names the host to add rather than leaving the reader to
+    // guess. It goes here, never into the document.
+    if (event.data.type === 'ASSET_REPORT') {
+      const { blockedHosts, failed } = event.data
+      const notes: string[] = []
+      if (blockedHosts.length > 0) {
+        notes.push(
+          `This file also links to ${listHosts(blockedHosts)}, which ${
+            blockedHosts.length === 1 ? 'is' : 'are'
+          } not on your allowed list, so ${
+            blockedHosts.length === 1 ? 'it was' : 'they were'
+          } not loaded.`,
+        )
+      }
+      if (failed > 0) {
+        notes.push(`${failed} allowed resource${failed === 1 ? '' : 's'} could not be downloaded.`)
+      }
+      if (notes.length > 0) warning.textContent = `${warningFor(kind, settings)} ${notes.join(' ')}`
       return
     }
 

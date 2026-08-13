@@ -1,7 +1,12 @@
-import { isSandboxMessage, type SandboxReadyMessage } from '../shared/protocol.ts'
+import {
+  isSandboxMessage,
+  type AssetReportMessage,
+  type SandboxReadyMessage,
+} from '../shared/protocol.ts'
 import { buildDocument, escapeHtml } from './document.ts'
 import { renderMermaid } from './mermaid.ts'
 import { requestDiagram, handleDiagramResult } from './diagram-relay.ts'
+import { requestAsset, handleAssetResult } from './asset-relay.ts'
 
 /**
  * Runs inside the manifest-declared sandboxed page (opaque origin, no `chrome.*`
@@ -31,12 +36,17 @@ window.addEventListener('message', (event: MessageEvent) => {
     return
   }
 
+  if (event.data.type === 'ASSET_RESULT') {
+    handleAssetResult(event.data)
+    return
+  }
+
   if (event.data.type !== 'RENDER_ATTACHMENT') return
 
   const host = document.getElementById(HOST_ID)
   if (!host) return
 
-  const { text, fileName, kind, expand, diagrams, allowScripts } = event.data
+  const { text, fileName, kind, expand, diagrams, assets, allowScripts } = event.data
 
   // Re-checked rather than trusted: every kind but `html` is a document we
   // generate, so there is never a reason to run script in one, whatever the
@@ -52,6 +62,19 @@ window.addEventListener('message', (event: MessageEvent) => {
     diagrams,
     renderMermaid,
     fetchDiagram: requestDiagram,
+    // Same re-check as `scripts`, for the same reason: the generated documents
+    // link nowhere, so there is nothing in them to resolve.
+    assets: { enabled: kind === 'html' && assets.enabled, hosts: assets.hosts },
+    fetchAsset: requestAsset,
+    onAssetReport: (result) => {
+      const report: AssetReportMessage = {
+        type: 'ASSET_REPORT',
+        inlined: result.inlined,
+        failed: result.failed,
+        blockedHosts: result.blockedHosts,
+      }
+      window.parent.postMessage(report, '*')
+    },
   })
     // Without this, a rejection leaves the host empty and the modal shows a
     // blank white pane with no hint of what went wrong — the failure mode is
