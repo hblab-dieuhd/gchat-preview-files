@@ -1,0 +1,73 @@
+{
+  "_what_this_file_is": "A JSON preview test fixture. Every field below is checking something specific about src/sandbox/json.ts.",
+  "escaping": {
+    "_check": "None of these may become live markup, and none may break the tree",
+    "script_tag": "<script>alert('json escaping is broken')</script>",
+    "img_onerror": "<img src=x onerror=alert(1)>",
+    "closing_details": "</summary></details><h1>escaped from the tree</h1>",
+    "entities": "already &amp; encoded &lt;b&gt; stays literal",
+    "quotes": "she said \"hello\" and 'goodbye'",
+    "backslashes": "C:\\Users\\dieuhd\\Data\\Project"
+  },
+  "auto_open_depth": {
+    "_check": "AUTO_OPEN_DEPTH is 2 — this level opens, the level below it starts collapsed",
+    "level_2": {
+      "level_3": {
+        "level_4": {
+          "level_5": "If you can see this without clicking anything, auto-open is deeper than documented"
+        }
+      }
+    }
+  },
+  "array_index_labels": {
+    "_check": "Each item must show its index. Without it these collapse into identical '{ ... 3 keys }' rows, which is exactly the case the labels exist for",
+    "items": [
+      { "id": 1, "status": "ok", "region": "apac" },
+      { "id": 2, "status": "ok", "region": "apac" },
+      { "id": 3, "status": "ok", "region": "apac" },
+      { "id": 4, "status": "ok", "region": "apac" },
+      { "id": 5, "status": "degraded", "region": "emea" }
+    ]
+  },
+  "scalar_types": {
+    "_check": "Each type should be visually distinguishable, and the palette should match what a .md code fence uses for the same thing",
+    "string": "text",
+    "empty_string": "",
+    "integer": 42,
+    "negative": -17,
+    "float": 3.14159,
+    "exponent": 6.022e23,
+    "zero": 0,
+    "boolean_true": true,
+    "boolean_false": false,
+    "null_value": null
+  },
+  "empty_containers": {
+    "_check": "Neither should render as an expandable node with nothing inside",
+    "empty_object": {},
+    "empty_array": []
+  },
+  "awkward_keys": {
+    "_check": "Keys go through the same escaping as values",
+    "<b>bold key</b>": "key was escaped if you can read the angle brackets",
+    "key with spaces": "ok",
+    "": "empty key",
+    "emoji 🔒 key": "ok",
+    "tiếng việt có dấu": "ok"
+  },
+  "unicode_values": {
+    "vietnamese": "Xem trước tệp đính kèm ngay trong Google Chat",
+    "japanese": "添付ファイルのプレビュー",
+    "rtl": "معاينة الملفات",
+    "emoji": "📎 🔒 ✅",
+    "zero_width": "before\u200bafter"
+  },
+  "long_value": {
+    "_check": "A long string must not blow out the tree's width — it should wrap or scroll inside its own row",
+    "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur."
+  },
+  "deep_nesting_for_expand_all": {
+    "_check": "Expand-all and collapse-all are a full re-render, not a click handler — there is no JavaScript in this frame. Both buttons must reach every level here",
+    "a": { "b": { "c": { "d": { "e": { "f": "bottom" } } } } }
+  }
+}

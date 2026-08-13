@@ -1,0 +1,184 @@
+@startuml
+' PlantUML preview test fixture — the whole file is one diagram.
+'
+' Expected with PlantUML drawing ON:  renders as an image served from a data: URI.
+'                                     Confirm in DevTools that the <img> src starts
+'                                     with "data:" and is NOT https://www.plantuml.com —
+'                                     a host in img-src would hand every previewed
+'                                     file a beacon channel.
+' Expected with drawing OFF:          the source shows with a note saying why, and
+'                                     NOTHING leaves the machine. That is the whole
+'                                     point of the setting: "off" means the source
+'                                     must not travel, and showing it locally honours
+'                                     that while still being useful.
+'
+' This file is deliberately over 4 KB. The old ~h hex URL form doubled the source and
+' the server answered HTTP 400 somewhere past an 8 KB URL, so every .puml over roughly
+' 3.5 KB — most real diagrams — failed to render. If this one draws, the deflate +
+' custom-base64 path via CompressionStream('deflate-raw') is working. If it 400s, the
+' code fell back to hex.
+'
+' There is a fence on the next line on purpose: ``` — a standalone .puml must not be
+' wrapped in a synthetic fenced block and run through the markdown renderer.
+
+title Previewing an attachment, end to end
+
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 220
+skinparam sequenceMessageAlign center
+
+actor "Reader" as User
+participant "Google Chat\n(page DOM)" as Chat
+participant "content.js\n(isolated world)" as Content
+participant "background.js\n(service worker)" as Worker
+participant "Chat attachment API" as Api
+participant "sandbox.html\n(opaque origin)" as Sandbox
+participant "attachment frame\n(srcdoc)" as Frame
+participant "PlantUML server" as Puml
+
+== Detection ==
+
+Chat -> Content : message list mutates\n(virtualized: mounted and unmounted while scrolling)
+activate Content
+Content -> Content : debounced MutationObserver scan
+note right of Content
+  Never key off CSS class names —
+  they are build-generated and change
+  between releases. Match the
+  get_attachment_url endpoint instead,
+  host- and path-agnostically:
+  chat.google.com/api/...
+  chat.google.com/u/0/api/...  (multi-account)
+  mail.google.com/chat/api/...  (Gmail)
+end note
+Content -> Content : read content_type + alt / aria-label / download
+note right of Content
+  The detailed-thread card has no <img>
+  at all. The file name lives only on an
+  ancestor div[role="button"] title or
+  aria-label, which is why the walk up
+  ANCESTOR_LABEL_DEPTH levels exists.
+  Drop it and that whole view goes
+  undetectable — silently.
+end note
+Content -> Content : extension decides the kind\n(content_type is only a fallback)
+note right of Content
+  Chat reports .md as text/plain and often
+  reports .html as application/octet-stream.
+  For .mmd and .puml there is no fallback at
+  all — every diagram extension is served as
+  text/plain.
+end note
+Content -> Chat : inject Preview button\ninto a CLOSED shadow root
+note right of Content
+  :host { all: initial } — Chat's stylesheet
+  is aggressive enough to break unshielded UI
+  on Google's next release.
+  Deduplicated per scan on attachment_token,
+  the only stable identity.
+end note
+deactivate Content
+
+== Fetching the bytes ==
+
+User -> Chat : clicks Preview
+Chat -> Content : click
+activate Content
+Content -> Worker : FETCH_ATTACHMENT { url }
+activate Worker
+
+group Service worker first
+  Worker -> Api : GET url_type=DOWNLOAD_URL
+  Api --> Worker : 302 to a Google file-serving host
+  Worker -> Api : follow redirect
+  note right of Worker
+    Only this context can follow it.
+    A page-context fetch starts same-origin,
+    becomes cross-origin at the redirect, and
+    dies with a bare TypeError: Failed to fetch
+    because those hosts send no
+    Access-Control-Allow-Origin.
+    Every possible redirect target must be in
+    host_permissions, not just the endpoint host.
+  end note
+  Api --> Worker : bytes
+end
+
+alt worker path fails
+  Worker --> Content : error (url_type + host/path, no query string)
+  Content -> Api : same request from the page
+  note right of Content
+    The only context that sends Origin and
+    Referer. A service worker fetch cannot set
+    Referer at all — forbidden header — so if
+    the API starts requiring it, this is the
+    path that still works.
+  end note
+  Api --> Content : bytes or error
+  note over Content
+    When BOTH fail, report BOTH errors.
+    Returning only the page-context error hides
+    the worker's and makes a CORS failure look
+    like an API rejection — that cost a full
+    debugging round once already.
+  end note
+end
+
+deactivate Worker
+
+== Rendering ==
+
+Content -> Sandbox : postMessage { kind, source, settings }
+note right of Content
+  A string. Never inserted into the Chat DOM.
+  Settings travel in the message because the
+  sandbox has no chrome.* APIs.
+end note
+deactivate Content
+
+activate Sandbox
+Sandbox -> Sandbox : re-check the kind\n(do not trust the message)
+Sandbox -> Sandbox : buildDocument(...)\nrenderMermaid and fetchDiagram injected
+
+group PlantUML only — the source leaves the machine
+  Sandbox -> Content : DIAGRAM_REQUEST { id, source }
+  activate Content
+  Content -> Worker : fetch diagram
+  activate Worker
+  Worker -> Puml : GET /png/<deflate + custom base64>
+  Puml --> Worker : image bytes
+  Worker --> Content : data: URI
+  deactivate Worker
+  Content --> Sandbox : DIAGRAM_RESULT { id, dataUri }
+  deactivate Content
+  note over Sandbox
+    Ids matter: several diagrams in one
+    document resolve concurrently and out
+    of order. The relay exists because the
+    sandbox has no chrome.* APIs.
+  end note
+end
+
+Sandbox -> Frame : rebuild the frame from scratch,\nset srcdoc
+note right of Sandbox
+  The sandbox attribute is read at load time
+  only, so mutating a live frame would keep
+  the old permissions.
+  sandbox="" unless the kind is html AND the
+  user opted in.
+end note
+deactivate Sandbox
+
+activate Frame
+Frame -> User : the preview
+Frame -->x Puml : blocked (img-src is data: blob:)
+Frame -->x Chat : blocked (no allow-same-origin)
+deactivate Frame
+
+legend right
+  If this legend and every note above are
+  legible, a source well past the old 8 KB
+  URL ceiling round-tripped successfully.
+end legend
+
+@enduml

@@ -3,4 +3,7 @@ dist/
 *.zip
 .DS_Store
 release/
-client_secret.json
+# Google's download is named client_secret_<id>.apps.googleusercontent.com.json,
+# which the bare `client_secret.json` did not match — the file sat untracked and
+# unignored, one `git add -A` away from being published.
+client_secret*.json

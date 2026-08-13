@@ -11,6 +11,7 @@
     "build": "npm run typecheck && npm run test && npm run clean && npm run build:all",
     "dev": "vite build --mode background --watch & vite build --mode content --watch & vite build --mode sandbox --watch & vite build --mode options --watch & vite build --mode mermaid --watch & wait",
     "test": "node --test \"src/**/*.test.ts\"",
+    "verify": "npm run build && node scripts/test-chrome.mjs",
     "package": "npm run build && node scripts/package.mjs",
     "version": "node scripts/sync-version.mjs",
     "release": "npm run package && chrome-webstore-upload --source release/gchat-preview-files-$npm_package_version.zip",

@@ -1,0 +1,49 @@
+%% Mermaid preview test fixture — the whole file is one diagram.
+
+%% Expected with Mermaid drawing ON:  this renders as a flowchart.
+%% Expected with drawing OFF:         the source shows with a note saying why.
+%% Expected if it fails to render:    the source shows, escaped — one bad
+%% diagram must not cost the reader the file.
+
+%% Note for anyone editing this file: a line holding nothing but `%%` is not an
+%% empty comment to mermaid. Several of them in a row get stripped and rejoined
+%% into `%%%%%%flowchart`, and the parse fails on line 1. Use a blank line.
+
+%% This comment contains a fence on purpose: ``` and then some ``` more.
+%% A standalone .mmd must NOT be handled by wrapping it in a synthetic fenced
+%% block and pushing it through the markdown renderer — the fence above would
+%% close early and the rest of the file would render as prose.
+
+%% Mermaid is drawn LOCALLY, in the sandbox page. Nothing here touches the
+%% network, which is the difference from the .puml fixture next door.
+
+flowchart TB
+  subgraph privileged["Privileged contexts"]
+    BG["background.js<br/><i>host_permissions</i><br/>only context CORS ignores"]
+    CS["content.js<br/>reads settings, relays<br/>never innerHTML on the host page"]
+  end
+
+  subgraph opaque["Opaque origins"]
+    SB["sandbox.html<br/>allow-scripts<br/>no chrome.* APIs"]
+    DOC["attachment frame<br/>srcdoc, sandbox=&quot;&quot;"]
+  end
+
+  CHAT["Google Chat DOM<br/>virtualized message list"]
+
+  CHAT -->|"MutationObserver<br/>debounced scan"| CS
+  CS -->|"chrome.runtime.sendMessage"| BG
+  BG -->|"DOWNLOAD_URL, then FIFE_URL, then MEDIA_URL"| FETCH{"non-image<br/>bytes?"}
+  FETCH -->|no| BG
+  FETCH -->|yes| CS
+  CS -->|"window.postMessage<br/>string only, never rendered"| SB
+  SB -->|"srcdoc"| DOC
+
+  DOC -.->|"blocked: no allow-same-origin"| CHAT
+  DOC -.->|"blocked: connect-src none"| NET(["any host"])
+
+  classDef safe fill:#e8f5e9,stroke:#1a7f37,color:#1f2328
+  classDef danger fill:#ffebe9,stroke:#d1242f,color:#1f2328
+  classDef neutral fill:#f6f8fa,stroke:#59636e,color:#1f2328
+  class BG,CS safe
+  class DOC,NET danger
+  class SB,CHAT,FETCH neutral
