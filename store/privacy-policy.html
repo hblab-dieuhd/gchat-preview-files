@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Privacy Policy — GChat Preview Files</title>
-<meta name="description" content="Privacy policy for the GChat Preview Files Chrome extension.">
+<title>Privacy Policy — File Preview for Google Chat &amp; Drive</title>
+<meta name="description" content="Privacy policy for the File Preview for Google Chat &amp; Drive Chrome extension.">
 <style>
   :root {
     --bg: #ffffff;
@@ -65,12 +65,13 @@
 <body>
 <main>
 
-<h1>Privacy Policy — GChat Preview Files</h1>
-<p class="updated">Last updated: 13 August 2026</p>
+<h1>Privacy Policy — File Preview for Google Chat &amp; Drive</h1>
+<p class="updated">Last updated: 7 November 2026</p>
 
-<p>GChat Preview Files is a Chrome extension that renders <code>.html</code>,
+<p>File Preview for Google Chat &amp; Drive is a Chrome extension that renders <code>.html</code>,
 <code>.md</code>, <code>.json</code>, <code>.mmd</code> and <code>.puml</code>
-attachments inline in Google Chat. This policy describes every piece of data the
+attachments inline in Google Chat, and <code>.html</code>, <code>.mmd</code> and
+<code>.puml</code> files in Google Drive. This policy describes every piece of data the
 extension touches and where it goes.</p>
 
 <h2>The short version</h2>
@@ -100,8 +101,8 @@ content is ever written to storage.</p>
 <h2>What leaves your browser</h2>
 
 <p><strong>1. The attachment request.</strong> Fetching the file you asked to
-preview goes to Google's own servers, the same ones Google Chat would use if you
-had clicked Download. Nothing is added to that request.</p>
+preview goes to Google's own servers, the same ones Google Chat or Google Drive would use
+if you had clicked Download. Nothing is added to that request.</p>
 
 <p><strong>2. PlantUML diagram source — only if you leave PlantUML
 enabled.</strong> PlantUML has no browser renderer, so a
@@ -160,6 +161,11 @@ what it sees anywhere.</p>
       clicked on.</li>
   <li>No reading of your chat messages. The extension looks only at attachment
       cards, to find the file name and the attachment URL.</li>
+  <li>No collecting of your Google Drive file list. To decide which files get a
+      Preview button, the extension reads the names and ids of the files on the
+      Drive page you have open. That happens in your browser and is neither stored
+      nor sent anywhere. A file's contents are only downloaded when you click
+      Preview on it.</li>
 </ul>
 
 <h2>Permissions and why they exist</h2>
@@ -180,10 +186,15 @@ what it sees anywhere.</p>
           fetch the attachment.</td>
     </tr>
     <tr>
+      <td><code>drive.google.com</code></td>
+      <td>Adding the Preview button in Google Drive and fetching the file you
+          clicked it on. Also a host that Chat attachment requests can be
+          redirected to.</td>
+    </tr>
+    <tr>
       <td><code>*.googleusercontent.com</code>,
-          <code>*.usercontent.google.com</code>,
-          <code>drive.google.com</code></td>
-      <td>Google's file-serving hosts, which the attachment request is redirected
+          <code>*.usercontent.google.com</code></td>
+      <td>Google's file-serving hosts, which the file request is redirected
           to.</td>
     </tr>
     <tr>
@@ -218,7 +229,7 @@ extension's Chrome Web Store release notes.</p>
 <a href="mailto:dieuhd@hblab.vn">dieuhd@hblab.vn</a></p>
 
 <footer>
-  Privacy policy for the GChat Preview Files Chrome extension. Not affiliated
+  Privacy policy for the File Preview for Google Chat &amp; Drive Chrome extension. Not affiliated
   with, endorsed by, or sponsored by Google. Google Chat is a trademark of
   Google LLC.
 </footer>

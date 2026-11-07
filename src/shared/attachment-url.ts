@@ -25,6 +25,19 @@ const ATTACHMENT_ENDPOINT = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.google\.com\/
 /** `url_type` values that plausibly serve bytes, in order of likelihood. */
 const DOWNLOAD_URL_TYPES = ['DOWNLOAD_URL', 'FIFE_URL', 'MEDIA_URL'] as const
 
+/**
+ * Drive's download URL for a file id. Answers with a redirect to
+ * `drive.usercontent.google.com`, which is in `host_permissions` for that reason.
+ */
+export function driveDownloadUrl(fileId: string, authUser: string | null): string {
+  const account = authUser ? `&authuser=${authUser}` : ''
+  return `https://drive.google.com/uc?export=download&id=${fileId}${account}`
+}
+
+export function isDriveDownloadUrl(rawUrl: string): boolean {
+  return rawUrl.startsWith('https://drive.google.com/uc?')
+}
+
 export function isAttachmentEndpoint(rawUrl: string): boolean {
   return ATTACHMENT_ENDPOINT.test(rawUrl)
 }

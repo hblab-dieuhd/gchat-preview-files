@@ -9,9 +9,11 @@ import {
   type FetchDiagramResponse,
   type JsonExpand,
   type RenderAttachmentMessage,
+  type HtmlFinding,
 } from '../shared/protocol.ts'
 import { isAssetUrlAllowed, type Settings } from '../shared/settings.ts'
 import { requestFromBackground } from './background-request.ts'
+import { bannerFor } from './scan-banner.ts'
 
 /**
  * The modal that hosts the preview.
@@ -97,11 +99,15 @@ const STYLES = `
   .warning {
     padding: 8px 16px;
     border-bottom: 1px solid #e0e0e0;
-    background: #fef7e0;
-    color: #5f4b1f;
+    background: #f1f3f4;
+    color: #3c4043;
     font-size: 12px;
     line-height: 1.5;
   }
+  .warning[hidden] { display: none; }
+  .warning.caution { background: #fef7e0; color: #5f4b1f; }
+  .warning.danger { background: #fce8e6; color: #a50e0e; font-weight: 500; }
+  button.danger { border-color: #d93025; color: #c5221f; }
   .body { position: relative; flex: 1; background: #fff; }
   iframe { width: 100%; height: 100%; border: 0; display: block; }
   .status {
@@ -120,25 +126,6 @@ const STYLES = `
   .status[hidden] { display: none; }
 `
 
-const WARNINGS: Record<AttachmentKind, string> = {
-  html:
-    'This file was sent by someone else. It runs cut off from your Google account and ' +
-    'from the internet, so it cannot read your session or send anything out — but treat ' +
-    'what it displays as untrusted, and never type passwords into it.',
-  markdown:
-    'Rendered from Markdown sent by someone else. Any HTML or script in the source is ' +
-    'shown as text, never run, and nothing here can reach the network.',
-  json:
-    'Rendered from JSON sent by someone else. Keys and values are shown as data, ' +
-    'never as markup, and nothing in this view can run.',
-  mermaid:
-    'Drawn from a Mermaid file sent by someone else. It is rendered on your machine, ' +
-    'nothing is sent anywhere, and nothing in this view can run.',
-  plantuml:
-    'Drawn from a PlantUML file sent by someone else. The result is shown as an image ' +
-    'and nothing in this view can run.',
-}
-
 const BADGES: Record<AttachmentKind, string> = {
   html: 'Scripts off',
   markdown: 'Markdown · inert',
@@ -148,26 +135,14 @@ const BADGES: Record<AttachmentKind, string> = {
 }
 
 /**
- * PlantUML is the one kind whose warning depends on settings, and it has to be:
- * drawing the diagram is what sends the file's source to a third-party server.
- * Saying so on the preview itself is the only place the user sees it happen.
+ * The only kind besides `html` with something to say, because drawing the diagram
+ * is what sends the file's source to a third-party server. Saying so on the
+ * preview itself is the only place the user sees it happen.
+ *
+ * Markdown, JSON and Mermaid get no bar: this extension generates those documents
+ * and escapes what goes into them, so there is nothing about the file to report.
  */
-function warningFor(kind: AttachmentKind, settings: Settings): string {
-  // With asset inlining on, "cut off from the internet" is no longer the whole
-  // truth: the extension fetched what the file links to before rendering it. The
-  // page still cannot reach anything, and the difference is worth stating exactly.
-  if (kind === 'html' && settings.remoteAssets) {
-    return (
-      'This file was sent by someone else. Stylesheets, fonts, images and scripts it links ' +
-      'to on your allowed hosts were downloaded and built into this preview, so those hosts ' +
-      'can tell you opened it. The preview itself still runs cut off from your Google account ' +
-      'and cannot send anything out — but treat what it displays as untrusted, and never type ' +
-      'passwords into it.'
-    )
-  }
-
-  if (kind !== 'plantuml') return WARNINGS[kind]
-
+function plantUmlNote(settings: Settings): string {
   if (!settings.plantUmlEnabled) {
     return (
       'PlantUML rendering is off in this extension’s settings, so this file is shown as ' +
@@ -182,7 +157,7 @@ function warningFor(kind: AttachmentKind, settings: Settings): string {
     // Keep the raw value; normalise() should have made this unreachable.
   }
 
-  return `${WARNINGS.plantuml} Drawing it sent this file’s source to ${host}.`
+  return `Drawing this diagram sent the file’s source to ${host}.`
 }
 
 export interface PreviewHandle {
@@ -278,7 +253,7 @@ export function openPreview(
 
   const warning = document.createElement('div')
   warning.className = 'warning'
-  warning.textContent = warningFor(kind, settings)
+  warning.hidden = true
 
   const body = document.createElement('div')
   body.className = 'body'
@@ -303,6 +278,27 @@ export function openPreview(
   // extension generates, so the setting has nothing to apply to.
   let allowScripts = kind === 'html' && settings.allowScriptsByDefault
   let expand: JsonExpand = settings.jsonExpand
+  let findings: HtmlFinding[] = []
+  let assetNotes: string[] = []
+
+  const syncWarning = (): void => {
+    // With inlining on, anything still remote is named by `assetNotes`, by host.
+    const shown = settings.remoteAssets ? findings.filter((f) => f !== 'remote') : findings
+    const banner = kind === 'html' ? bannerFor(shown, allowScripts) : null
+    const note = kind === 'plantuml' ? plantUmlNote(settings) : ''
+    const text = [banner?.text ?? note, ...assetNotes].filter(Boolean).join(' ')
+
+    warning.textContent = text
+    warning.hidden = text === ''
+    warning.className = `warning ${banner?.level ?? 'notice'}`
+
+    const disguised = findings.includes('obfuscated')
+    scriptsButton.classList.toggle('danger', disguised)
+    if (disguised && !allowScripts) {
+      scriptsButton.title =
+        'This file’s scripts look deliberately disguised. Only run them if you trust where it came from.'
+    }
+  }
 
   const syncControls = (): void => {
     badge.textContent = allowScripts ? 'Scripts on · offline' : BADGES[kind]
@@ -318,6 +314,7 @@ export function openPreview(
     collapseButton.hidden = kind !== 'json'
     expandButton.disabled = expand === 'all'
     collapseButton.disabled = expand === 'none'
+    syncWarning()
   }
 
   const post = (): void => {
@@ -374,8 +371,16 @@ export function openPreview(
     // so the warning bar names the host to add rather than leaving the reader to
     // guess. It goes here, never into the document.
     if (event.data.type === 'ASSET_REPORT') {
-      const { blockedHosts, failed } = event.data
+      const { blockedHosts, failed, inlined } = event.data
       const notes: string[] = []
+      // Fetching these is the one thing that did leave the machine, and the bar is
+      // the only place the reader can learn it.
+      if (inlined > 0) {
+        notes.push(
+          'Resources it links to on your allowed hosts were downloaded and built into this ' +
+            'preview, so those hosts can tell you opened it.',
+        )
+      }
       if (blockedHosts.length > 0) {
         notes.push(
           `This file also links to ${listHosts(blockedHosts)}, which ${
@@ -388,7 +393,14 @@ export function openPreview(
       if (failed > 0) {
         notes.push(`${failed} allowed resource${failed === 1 ? '' : 's'} could not be downloaded.`)
       }
-      if (notes.length > 0) warning.textContent = `${warningFor(kind, settings)} ${notes.join(' ')}`
+      assetNotes = notes
+      syncWarning()
+      return
+    }
+
+    if (event.data.type === 'HTML_SCAN') {
+      findings = event.data.findings
+      syncWarning()
       return
     }
 

@@ -53,11 +53,11 @@ function extensionPattern(alternatives: string): RegExp {
   return new RegExp(`\\.(?:${alternatives})${EXTENSION_END}`, 'i')
 }
 
-const HTML_EXT = 'html?|xhtml'
+export const HTML_EXT = 'html?|xhtml'
 const MARKDOWN_EXT = 'md|markdown|mdown|mkd'
 const JSON_EXT = 'json'
-const MERMAID_EXT = 'mermaid|mmd'
-const PLANTUML_EXT = 'plantuml|puml|iuml|wsd|pu'
+export const MERMAID_EXT = 'mermaid|mmd'
+export const PLANTUML_EXT = 'plantuml|puml|iuml|wsd|pu'
 
 const KIND_BY_EXTENSION: readonly (readonly [RegExp, AttachmentKind])[] = [
   [extensionPattern(HTML_EXT), 'html'],

@@ -10,18 +10,16 @@ are the Store's, counted as written.
 ### Item name (max 75)
 
 ```
-GChat Preview Files — HTML, Markdown & JSON
+File Preview for Google Chat & Drive
 ```
 
-> **Decision needed.** See "Naming and trademark" in [README.md](README.md). If you
-> want the safer variant, use `Attachment Preview for Google Chat` and change
-> `name` in `public/manifest.json` to match — the Store shows the manifest name,
-> not this field, once the item is created.
+The Store shows the name in `public/manifest.json` once the item exists, so keep the
+two identical. See "Naming and trademark" in [README.md](README.md).
 
 ### Short description (max 132)
 
 ```
-Read .html, .md and .json attachments right inside Google Chat — no download, no leaving the tab. Diagrams and JSON trees included.
+Preview .html, .md, .json and diagram files inside Google Chat, and .html and diagram files in Google Drive. No download needed.
 ```
 
 (130 characters.)
@@ -167,8 +165,9 @@ uploading. The screenshots are public.
 ### Single purpose description
 
 ```
-Previews .html, .md and .json file attachments inline in Google Chat, so the
-recipient can read them without downloading the file and opening it locally.
+Previews files rendered in place in Google Chat and Google Drive (.html, .md,
+.json and diagram files in Chat; .html and diagram files in Drive), so they can be
+read without downloading the file and opening it locally.
 ```
 
 ### Permission justifications
@@ -204,6 +203,12 @@ file-serving host holds the file. A fetch that is not permitted for the redirect
 target dies at the redirect, so every possible target host must be listed. These
 are Google's own file-serving hosts; the extension only ever requests the exact
 attachment URL the user clicked Preview on.
+
+drive.google.com is also a page the extension runs on: it adds a Preview button
+to .html, .mmd and .puml files in Google Drive, whose own viewer shows those as
+source text. It reads file names and file ids from the page to decide which files
+get a button. Nothing read there leaves the browser, and a file is only downloaded
+when the user clicks Preview on it.
 ```
 
 **Host permission — `https://www.plantuml.com/*`**

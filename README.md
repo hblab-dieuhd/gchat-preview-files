@@ -1,4 +1,4 @@
-# GChat HTML Preview
+# File Preview for Google Chat & Drive
 
 A Chrome extension (Manifest V3) that adds a **Preview** button next to `.html`, `.md`, `.json`, `.mmd` and `.puml` attachments in Google Chat, so you can read them in place instead of downloading the file and opening it from your Downloads folder.
 
@@ -9,6 +9,10 @@ A Chrome extension (Manifest V3) that adds a **Preview** button next to `.html`,
 - **JSON** opens as a collapsible tree with syntax colouring, array indices and key counts, plus *Expand all* / *Collapse all*. Broken JSON still opens, showing the parse error above the raw file.
 
 Plain `.txt` is left alone — Google Chat already previews it.
+
+**In Google Drive**, `.html`, `.mmd` and `.puml` files get the same button, in the file list, the grid, and the viewer — which otherwise shows these files as source text. `.md` and `.json` are not offered there.
+
+**A note appears above an HTML preview only when there is something to say.** The file is read on your machine before it is shown, and the note names what was found: scripts, a password field, a page that looks like a sign-in, or scripts that look deliberately disguised. No note does not mean a file is safe, only that nothing was found. The sandbox is what protects you, either way.
 
 ## Settings
 

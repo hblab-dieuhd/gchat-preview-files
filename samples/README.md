@@ -17,6 +17,11 @@ as a file that passes — read the "Expected" lines inside each one.
 | `sample.puml` | The deflate URL path — deliberately large enough that the old hex form would fail |
 | `sample-cdn.html` | `remoteAssets`: a CDN stylesheet, a font behind `url()`, an image, a CDN script, a blocked host, and two decoys |
 
+The warning bar is an assertion too. `sample.html` must show yellow, naming the password
+field, scripts and unloaded resources; `sample-cdn.html` grey, naming scripts and unloaded
+resources; `sample.md`, `sample.json` and `sample.mmd` no bar at all. Hostile documents that
+should not sit in a shared space are in [scripts/verify-scan.mjs](../scripts/verify-scan.mjs).
+
 ## The CDN fixture is an assertion sheet, not a demo
 
 `sample-cdn.html` carries a table of "Expected" rows and the modal's warning bar is where

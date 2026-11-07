@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "GChat Preview Files",
-  "version": "1.2.0",
-  "description": "Read .html, .md and .json attachments right inside Google Chat — no download, no leaving the tab. Diagrams and JSON trees included.",
+  "name": "File Preview for Google Chat & Drive",
+  "version": "1.4.0",
+  "description": "Preview .html, .md, .json and diagram files inside Google Chat, and .html and diagram files in Google Drive. No download needed.",
   "minimum_chrome_version": "120",
   "icons": {
     "16": "icons/icon16.png",
@@ -35,7 +35,8 @@
     {
       "matches": [
         "https://chat.google.com/*",
-        "https://mail.google.com/chat/*"
+        "https://mail.google.com/chat/*",
+        "https://drive.google.com/*"
       ],
       "js": [
         "content.js"
@@ -59,7 +60,8 @@
       ],
       "matches": [
         "https://chat.google.com/*",
-        "https://mail.google.com/*"
+        "https://mail.google.com/*",
+        "https://drive.google.com/*"
       ]
     }
   ]

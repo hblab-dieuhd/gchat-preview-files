@@ -1,9 +1,10 @@
-# Privacy Policy — GChat Preview Files
+# Privacy Policy — File Preview for Google Chat & Drive
 
-**Last updated: 13 August 2026**
+**Last updated: 7 November 2026**
 
-GChat Preview Files is a Chrome extension that renders `.html`, `.md`, `.json`,
-`.mmd` and `.puml` attachments inline in Google Chat. This policy describes every piece of data the
+File Preview for Google Chat & Drive is a Chrome extension that renders `.html`, `.md`, `.json`,
+`.mmd` and `.puml` attachments inline in Google Chat, and `.html`, `.mmd` and
+`.puml` files in Google Drive. This policy describes every piece of data the
 extension touches and where it goes.
 
 ## The short version
@@ -33,8 +34,8 @@ developer has no access to them. No file content is ever written to storage.
 ## What leaves your browser
 
 **1. The attachment request.** Fetching the file you asked to preview goes to
-Google's own servers, the same ones Google Chat would use if you had clicked
-Download. Nothing is added to that request.
+Google's own servers, the same ones Google Chat or Google Drive would use if you
+had clicked Download. Nothing is added to that request.
 
 **2. PlantUML diagram source — only if you leave PlantUML enabled.** PlantUML has
 no browser renderer, so a ```` ```plantuml ```` block inside a previewed Markdown
@@ -87,6 +88,10 @@ read it, it has no way to send what it sees anywhere.
   clicked on.
 - No reading of your chat messages. The extension looks only at attachment cards,
   to find the file name and the attachment URL.
+- No collecting of your Google Drive file list. To decide which files get a Preview
+  button, the extension reads the names and ids of the files on the Drive page you
+  have open. That happens in your browser and is neither stored nor sent anywhere.
+  A file's contents are only downloaded when you click Preview on it.
 
 ## Permissions and why they exist
 
@@ -94,7 +99,8 @@ read it, it has no way to send what it sees anywhere.
 | --- | --- |
 | `storage` | Saving your options-page preferences. Preferences only. |
 | `chat.google.com`, `mail.google.com` | The two places Google Chat runs; needed to add the Preview button and fetch the attachment. |
-| `*.googleusercontent.com`, `*.usercontent.google.com`, `drive.google.com` | Google's file-serving hosts, which the attachment request is redirected to. |
+| `drive.google.com` | Adding the Preview button in Google Drive and fetching the file you clicked it on. Also a host that Chat attachment requests can be redirected to. |
+| `*.googleusercontent.com`, `*.usercontent.google.com` | Google's file-serving hosts, which the file request is redirected to. |
 | `www.plantuml.com` | Drawing PlantUML diagrams, as described above. |
 | Optional `https://*/*` | Never requested at install, and never requested in full. Requested only for the specific hosts you name — a self-hosted PlantUML server, or the CDN hosts on your linked-resources list — at the moment you save that setting. Declining abandons the setting, and switching the setting off releases the hosts again. |
 
