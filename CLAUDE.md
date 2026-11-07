@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Manifest V3 Chrome extension that previews `.html`, `.md`, `.json`, `.mmd` and `.puml` attachments inline in Google Chat, so recipients no longer have to download the file and open it locally. UI strings are English.
 
+It also runs on Google Drive, offering only `.html`, `.mmd` and `.puml` — see [Google Drive](#google-drive).
+
 `.txt` is deliberately **not** supported: Google Chat already previews plain text natively, so a second button next to its own preview would be noise.
 
 ## Commands
@@ -29,16 +31,20 @@ Tests run on Node's built-in runner against `.ts` sources directly via Node 24 t
 
 Run one file with `node --test src/content/detector.test.ts`. Anything needing a DOM cannot be tested this way, which is why the diagram renderers are injected callbacks rather than imports.
 
-The seven suites and what each is guarding:
+The eleven suites and what each is guarding:
 
 | File | Guards |
 | --- | --- |
 | [src/content/detector.test.ts](src/content/detector.test.ts) | Attachment recognition and URL rewriting — the `attachment_token` surviving byte for byte |
+| [src/content/drive.test.ts](src/content/drive.test.ts) | Drive's name and id decisions — the extension must *end* the name, an id cannot alter the URL, embedded frames are refused |
+| [src/shared/fetch-attachment.test.ts](src/shared/fetch-attachment.test.ts) | That a Google page served in place of a Drive file is refused rather than rendered as the file |
 | [src/content/background-request.test.ts](src/content/background-request.test.ts) | The service-worker wake retry, and that only the missing-receiver error is retried |
 | [src/sandbox/document.test.ts](src/sandbox/document.test.ts) | Escaping, asserting on the *absence* of live markup; diagram injection and fallbacks |
 | [src/sandbox/inline-assets.test.ts](src/sandbox/inline-assets.test.ts) | That the allowlist is never fetched past, and that untouched bytes stay untouched |
 | [src/sandbox/markdown.test.ts](src/sandbox/markdown.test.ts) | PlantUML URL encoding — the deflate round-trip, the length ceiling, the hex fallback |
 | [src/sandbox/highlight.test.ts](src/sandbox/highlight.test.ts) | That hljs escapes as it tokenises — its output is inserted *unescaped* |
+| [src/sandbox/html-scan.test.ts](src/sandbox/html-scan.test.ts) | What counts as disguised code, including that real minified libraries do not; when wording makes a sign-in page |
+| [src/content/scan-banner.test.ts](src/content/scan-banner.test.ts) | The worst finding sets the level, no wording vouches for a file, an unknown code is dropped |
 | [src/shared/settings.test.ts](src/shared/settings.test.ts) | `normalise()` rejecting bad stored values, including non-https diagram servers |
 
 Load the extension by pointing `chrome://extensions` → "Load unpacked" at `dist/`. After a rebuild, click the reload icon on the extension card, then hard-reload the Google Chat tab — `npm run dev` rebuilds files but cannot reload the extension itself.
@@ -189,6 +195,26 @@ Known gaps, all deliberate: relative URLs (a `srcdoc` document has no base to re
 
 A blocked host is reported to the modal's warning bar via `ASSET_REPORT`, never written into the document. Without it a file whose CDN is not on the list renders unstyled and looks simply broken, with nothing naming the host to add.
 
+## The warning bar reports what is in the file
+
+An HTML file gets a bar only if [src/sandbox/html-scan.ts](src/sandbox/html-scan.ts) finds something, and [src/content/scan-banner.ts](src/content/scan-banner.ts) words it. Markdown, JSON and Mermaid get none, because this extension generates those documents. PlantUML says only where the source went.
+
+**It is a signal, not a boundary.** Whether a script is harmful cannot be decided by reading it, and a login form drawn as an image has no markup to find. Nothing may be relaxed on a clean result: scripts are never turned on by it, and no wording may call a file safe. A test pins the wording. A miss costs the reader a note, because the CSP and the sandbox flags hold regardless.
+
+Things not to undo:
+
+- **The report is posted before the frame is built, in the same task.** That is why the bar can start hidden without failing open: a file cannot be on screen before its report was sent. A scan that throws reports `unchecked`.
+- **It scans the document about to render**, after inlining, so an inlined CDN script is read too.
+- **`DOMParser`, unlike `inline-assets.ts`.** The objection there is to writing a stranger's markup back out, and this writes nothing. It has to agree with the browser's parser. The one trap: `DOMParser` leaves a declarative shadow root as a `<template>`, while the frame renders it, so templates are walked.
+- **Findings are codes.** Nothing from the file can reach the bar on the host page.
+- **A bare `eval`, `atob` or `fromCharCode` is not obfuscation.** Measured 2026-11-07 on 14 CDN libraries: 7 contain `fromCharCode` and 2 `atob(`, including jQuery, React and Three.js, and none trips the shape-based rules. Decoding and then running the result is what counts.
+- **A login heading alone is not a sign-in page**, since documents about login flows are common. It takes a field to type into, or a button with that wording.
+- **`remote` exists because the old bar was removed.** It used to explain that the preview is cut off from the internet. Without it, a file with a remote image just looks broken.
+
+`allowScriptsByDefault` still applies before the scan is known, so a disguised file opens with its scripts running and the red bar says so. Holding them back would need a new "explicit click" field on the render message, and that setting is one the user chose.
+
+**Verification status.** 2026-11-07, Chrome 156. `node scripts/verify-scan.mjs` passes against the real sandbox page. The real modal: `sample.html` yellow from Drive, grey and absent states and the red bar driven by posting `HTML_SCAN` from inside the real sandbox frame, *Enable scripts* changing the wording and back, an unknown code dropped; `.mmd` no bar and `.puml` the source note from Drive; `.md` and `.json` no bar and `sample-cdn.html` grey in Chat. **Not** verified: a disguised or sign-in file through a real attachment, because none was uploaded to a real account; the inlined-resources sentence with `remoteAssets` on, for the reason given above; how often real documents trip the yellow bar.
+
 ## The JSON tree has no JavaScript
 
 The frame rendering it is built with `sandbox=""`, so the tree is `<details>`/`<summary>` and nothing else. Do not "improve" it with a click handler — it would silently do nothing.
@@ -257,6 +283,29 @@ One thing is still unverified in Chat and it is worth naming precisely: the `rem
 
 Still **not** verified live: the detailed-thread card (every fixture sat in the normal message view — this is the layout that has silently broken before), Chat embedded in Gmail, invalid JSON and the `MAX_NODES` fallback, and form submission from an HTML attachment.
 
+## Google Drive
+
+[src/content/drive.ts](src/content/drive.ts) is the Drive counterpart of `detector.ts` and shares only the extension lists with it: Chat gives a self-describing URL and no stable id, Drive gives a stable id and no URL. Everything after detection is the same one-way path to the same sandbox, so the CSP, the sandbox flags and the threat model do not change. It offers `html`, `mermaid` and `plantuml` — what Drive's own viewer shows as source text.
+
+Three surfaces, all confirmed against live markup: `[data-id][data-tooltip]` for list, grid and Home, whose `textContent` is the exact name; a hidden `#drive-active-item-info` JSON block (`id`, `title`, `mimeType`) in the overlay viewer's `viewer/main` iframe, which is replaced on Next and removed on close; and `/file/d/ID/view` with `og:title`. Do not key off `aria-label`s such as "Rename …" — they are translated with the UI.
+
+Things that look wrong or over-built and are not. The `click`, debounce and `z-index` items were live failures that `npm test` passed straight through:
+
+- **Row buttons do not use `click`.** Drive rebuilds a row on hover, press and release, which detaches the button mid-gesture. Chrome drops the click target when that node leaves the tree, and reinserting the same element does not restore it, so no `click` is ever dispatched. `driveRowButton` pairs `pointerdown` and `pointerup` itself. The viewer button is not in a rebuilt subtree and uses plain `click`.
+- **No debounce in `observeDrive`.** With Chat's 300 ms the button is missing exactly as the pointer arrives, and the click selects the row. `requestAnimationFrame` looks like the fix and is not: it stalls in a window the OS reports as covered, which is what a test browser on another Space is. Scanning in the observer callback costs about 0.02 ms for 20 rows.
+- **The same element is reinserted per slot**, because the press state lives in its closure. A slot includes an occurrence number because one file can be listed twice; keyed on the id alone, one element would be moved back and forth between the two, each move triggering the next, and the tab would hang.
+- **`z-index` on the row button.** Grid view covers each card with an absolutely positioned layer that hides the button and takes its clicks.
+- **Extensions are anchored at the end of the name.** Chat's `EXTENSION_END` tolerates following text because it digs a name out of a label. Here the string is the name, and tolerating that reads `a.html backup.pdf` as HTML.
+- **`Content-Disposition: attachment` is required on Drive downloads** in `fetch-attachment.ts`. Real bytes come that way, and Drive's other answers are pages. An `html` preview renders whatever it is handed, so without this a sign-in page answering 200 would display as the contents of the file.
+- **`isDriveOwnFrame`.** Reaching the overlay's iframe needs `all_frames`, which also matches a Drive iframe embedded on any other site. The script stays out of those.
+- **`authuser` is read from the referrer as a fallback.** The overlay frame's own URL has lost the account by the time the script runs.
+
+The Drive search box does not match on the extension: searching `.puml` missed a file called `sample.puml`. Search `sample`.
+
+**Verification status.** Live, 2026-11-07, Chrome 156, signed in to a personal Gmail account, with `sample.html`, `sample.mmd` and `sample.puml` opened from the list; `sample.mmd` also from the grid; `sample.html` from the file page; `sample.puml` from the overlay viewer, with the button following Next. Confirmed: scripts off and the remote image broken; one modal per click; press on the button and release elsewhere opens nothing; Escape closes the modal and leaves Drive's viewer open; a row cloned in the page gets its own button and settles after four inserts; in Chat, the buttons still appear and `sample-cdn.html` still opens as before (the other kinds were not reopened there).
+
+**Not** verified: a file you can view but not download, or a real sign-in page answering 200 (the guard is unit-tested only — the live probe with a bad id got a plain 404); a second signed-in account, so `authuser` is exercised by tests alone; shared drives and *Shared with me* beyond the file list; a non-English UI; a genuine duplicate on Home, none being present; diagrams switched off from a Drive preview. Keyboard: Tab did not reach a row button in 13 presses, since Drive manages focus inside its list, so the viewer's button is the keyboard route.
+
 ## Icons
 
 `assets/*.svg` are the masters; `public/icons/*.png` are generated by `npm run icons` (needs `rsvg-convert` — `brew install librsvg`) and committed. Edit the SVG, never the PNGs.
@@ -283,6 +332,8 @@ PlantUML looks like it should be an exception to rule 1, and an earlier version 
 Loading an HTML file's linked CSS, fonts, images and scripts is the same story a third time, and the one most likely to be "fixed" the wrong way. The tempting change is `style-src https://cdn…` — which reopens exactly the hole above, because a stylesheet can encode data into a selector's `url()` and the CSP no longer stops the request. What ships instead fetches through the worker and inlines the bytes, so the CSP is unchanged and previewed content still reaches no host. **It does move the threat model**, and precisely here: with `remoteAssets` on, hosts named in a file learn the recipient's IP and that the file was opened, at open time. That is static, author-known egress — it cannot carry anything the page observed. It is off by default, limited to an allowlist, and each host is a permission the user granted. Widening it to "any https origin" would collapse that distinction and should not be done quietly.
 
 The frame is rebuilt from scratch on each render in [src/sandbox/sandbox.ts](src/sandbox/sandbox.ts). The `sandbox` attribute is only read at load time, so mutating a live frame would silently keep the old permissions.
+
+The warning bar is not part of either rule. See [The warning bar reports what is in the file](#the-warning-bar-reports-what-is-in-the-file).
 
 **Known residual risks**, all low-bandwidth and none reaching the user's account: DNS-prefetch-style hostname leaks, WebRTC if Chrome's `webrtc` CSP directive is absent, timing/existence signals from the user opening the file, and resource exhaustion (an attachment can hang its own frame). With `remoteAssets` off — the default — remote images, remote fonts and CDN scripts do not render at all, which is the accepted cost of rule 1. PlantUML source reaching a third-party server, and an allowed CDN learning that a file was opened, are disclosures the user opts into, per the settings.
 

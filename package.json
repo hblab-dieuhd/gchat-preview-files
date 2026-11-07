@@ -1,6 +1,6 @@
 {
   "name": "gchat-preview-html",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "description": "Chrome extension that previews HTML attachments inline in Google Chat.",
   "private": true,
   "type": "module",

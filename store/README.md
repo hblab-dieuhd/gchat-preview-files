@@ -35,6 +35,34 @@ Store rejects a re-upload of a version number it has already seen.
 
 Paste into the version's *What's new* field in the dashboard.
 
+### 1.4.0
+
+If 1.3.0 was never uploaded, paste its notes below this too: this build includes it.
+
+```text
+Renamed to File Preview for Google Chat & Drive, since it no longer works only in Chat.
+
+The note above a preview now depends on the file. An HTML file is read on your
+machine before it is shown, and the note says what was found: scripts, a password
+field, a page that looks like a sign-in, or scripts that look deliberately disguised,
+which are marked in red. If nothing was found there is no note. No file content is
+sent anywhere for this, and previews stay as isolated as before. Markdown, JSON and
+Mermaid previews no longer show a note, and PlantUML shows only where the source went.
+```
+
+### 1.3.0
+
+```text
+Now works in Google Drive too. .html, .mmd and .puml files get a Preview button in
+the file list, the grid and the viewer, which otherwise shows these files as source
+text. Previews from Drive run in the same sandbox as attachments in Chat. A .puml
+file sends its source to the PlantUML server you have configured when drawn, as it
+does in Chat; turn drawing off in the options page to read it as source instead.
+
+The note above each preview no longer says a file was sent by someone else, since a
+file in Drive may be your own. The advice to treat it as untrusted stays.
+```
+
 ### 1.1.0
 
 Not yet uploaded — 1.0.0 was still in review when this was built, so both
@@ -202,17 +230,14 @@ order. Blur real names, avatars and message text first — these are public.
 
 ### 4. Decisions to make before you paste anything
 
-**Naming and trademark.** The manifest currently says `GChat Preview Files`.
-Google's brand and the Store's policy both dislike third-party items whose name
-suggests an official product. The conventional safe shape is `<function> for
-<product>`:
+**Naming and trademark.** The name is `File Preview for Google Chat & Drive`, changed from
+`GChat Preview Files` in 1.4.0. "GChat" no longer covered Drive, and it is a
+shortening of Google's own product name, which is the kind of name the brand rules
+and the Store's policy dislike. `<function> for <product>` is the conventional shape
+for naming a product the item works with. The name is set in `public/manifest.json`,
+which is what the Store displays once the item exists.
 
-- Safer: `Attachment Preview for Google Chat` — change `name` in
-  `public/manifest.json`, since the Store displays the manifest name once the item
-  exists.
-- Keep as-is: defensible, but a rejection on this point costs a review round.
-
-Either way, keep the "Not affiliated with, endorsed by, or sponsored by Google"
+Keep the "Not affiliated with, endorsed by, or sponsored by Google"
 line at the end of the description. It is already in the copy.
 
 **The `https://*/*` optional host permission.** This is the single most likely

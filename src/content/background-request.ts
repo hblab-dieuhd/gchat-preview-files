@@ -37,7 +37,7 @@ const CONTEXT_GONE =
 /** Nothing the page can do about it; the worker itself is not starting. */
 const WORKER_DEAD =
   'The extension background did not respond. Open chrome://extensions, reload ' +
-  'GChat Preview Files (or restart Chrome), then try again.'
+  'File Preview for Google Chat & Drive (or restart Chrome), then try again.'
 
 export interface BackgroundRequestOptions {
   /** Overridable so tests do not sit through the real backoff. */

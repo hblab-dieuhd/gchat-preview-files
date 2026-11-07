@@ -1,12 +1,14 @@
 import {
   isSandboxMessage,
   type AssetReportMessage,
+  type HtmlScanMessage,
   type SandboxReadyMessage,
 } from '../shared/protocol.ts'
 import { buildDocument, escapeHtml } from './document.ts'
 import { renderMermaid } from './mermaid.ts'
 import { requestDiagram, handleDiagramResult } from './diagram-relay.ts'
 import { requestAsset, handleAssetResult } from './asset-relay.ts'
+import { scanHtml } from './html-scan.ts'
 
 /**
  * Runs inside the manifest-declared sandboxed page (opaque origin, no `chrome.*`
@@ -81,6 +83,12 @@ window.addEventListener('message', (event: MessageEvent) => {
     // indistinguishable from "the file rendered as nothing".
     .catch((error: unknown) => errorDocument(error))
     .then((html) => {
+      // Before the frame, in this same task: the modal starts with no warning bar
+      // and relies on this having been sent by the time the file is visible.
+      if (kind === 'html') {
+        const scan: HtmlScanMessage = { type: 'HTML_SCAN', findings: scanHtml(html) }
+        window.parent.postMessage(scan, '*')
+      }
       host.replaceChildren(buildFrame(html, scripts))
     })
 })

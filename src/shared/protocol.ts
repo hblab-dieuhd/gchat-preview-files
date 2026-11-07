@@ -189,9 +189,40 @@ export interface AssetReportMessage {
   blockedHosts: string[]
 }
 
+/**
+ * What the sandbox found in an HTML file. See `sandbox/html-scan.ts`.
+ *
+ * Codes rather than text, so nothing from the file can reach the host page, where
+ * the modal turns them into its warning bar. It is a signal for the reader and
+ * never decides what the frame is allowed to do.
+ */
+export type HtmlFinding =
+  | 'obfuscated'
+  | 'redirect'
+  | 'password'
+  | 'login'
+  | 'embedded'
+  | 'unchecked'
+  | 'scripts'
+  | 'inputs'
+  | 'remote'
+
+/**
+ * sandbox -> content script: the scan of the document about to be shown.
+ *
+ * Posted immediately before the frame is built, in the same task, so a file can
+ * never be on screen without its report having been sent. That ordering is what
+ * lets the modal start with no warning bar without failing open.
+ */
+export interface HtmlScanMessage {
+  type: 'HTML_SCAN'
+  findings: HtmlFinding[]
+}
+
 export type SandboxMessage =
   | SandboxReadyMessage
   | AssetReportMessage
+  | HtmlScanMessage
   | RenderAttachmentMessage
   | DiagramRequestMessage
   | DiagramResultMessage

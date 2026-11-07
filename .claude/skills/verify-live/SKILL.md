@@ -51,11 +51,14 @@ the document looks like once it is in the frame. This is the loop for those.
 
    | Kind | What to confirm |
    | --- | --- |
-   | `.html` | Renders as the document. Scripts are **off** — the *Enable scripts* control is present and the page is static until it is used |
+   | `.html` | Renders as the document. Scripts are **off** — the *Enable scripts* control is present and the page is static until it is used. The warning bar names what is in the file: yellow on `sample.html`, grey on `sample-cdn.html` |
    | `.md` | Headings/lists/tables render; a fenced block with a language tag is coloured; raw HTML in the source shows as text, not markup |
    | `.json` | The `<details>` tree opens to depth 2; expand-all and collapse-all re-render; array items show their index |
    | `.mmd` | Draws as a diagram, not source |
    | `.puml` | Draws as an image (served as a `data:` URI through the worker, never an external `img src`) |
+
+   `.md`, `.json` and `.mmd` show no warning bar; `.puml` shows only where its source
+   went. After changing `html-scan.ts`, also run `node scripts/verify-scan.mjs`.
 
    Also worth one pass with diagrams switched off in the options page: `.mmd` and
    `.puml` must open showing their source with the note explaining why, because
@@ -66,6 +69,14 @@ the document looks like once it is in the frame. This is the loop for those.
    `url_type` fallbacks — every failed attempt is logged with its host and path),
    the Chat tab (detection, relay), and the sandbox page. A blank pane with a
    silent worker usually means detection never fired, not that rendering broke.
+
+## Google Drive
+
+Open `https://drive.google.com/drive/search?q=sample` — the account holds `sample.html`, `sample.mmd` and `sample.puml`. Drive's search does not match on the extension, so searching `.puml` misses them.
+
+Press the button with real input events, moving onto it first (`Input.dispatchMouseEvent`). A synthetic `.click()` skips the hover and the press, and those are what make Drive rebuild the row — every interaction bug so far has lived there. Check the list, the grid, the overlay viewer (double-click a row, then Next), and `/file/d/<id>/view`. Grid is a remembered preference, so switch it back afterwards.
+
+Then confirm Chat still works, because both surfaces share `index.ts`.
 
 ## Reporting
 

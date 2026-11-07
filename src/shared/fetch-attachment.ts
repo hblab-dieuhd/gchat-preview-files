@@ -1,5 +1,5 @@
 import { MAX_ATTACHMENT_BYTES, type FetchAttachmentResponse } from './protocol.ts'
-import { describeCandidate, downloadUrlCandidates } from './attachment-url.ts'
+import { describeCandidate, downloadUrlCandidates, isDriveDownloadUrl } from './attachment-url.ts'
 
 /**
  * Downloads an attachment's bytes, trying each candidate URL until one works.
@@ -37,6 +37,16 @@ export async function fetchAttachmentText(
       if (/^image\//i.test(contentType)) {
         // A thumbnail came back rather than the file itself; wrong url_type.
         attempts.push(`${label}: got ${contentType}`)
+        continue
+      }
+
+      // Drive serves real bytes as a download and everything else — a sign-in
+      // wall, a refusal, a scan warning — as a page, sometimes with HTTP 200. An
+      // `html` preview renders whatever it is given, so without this check that
+      // page would be shown as if it were the contents of the file.
+      const disposition = response.headers.get('content-disposition') ?? ''
+      if (isDriveDownloadUrl(rawUrl) && !/^\s*attachment\b/i.test(disposition)) {
+        attempts.push(`${label}: Drive answered with a page, not the file — usually a sign-in or permission problem`)
         continue
       }
 
