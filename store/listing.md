@@ -22,7 +22,7 @@ two identical. See "Naming and trademark" in [README.md](README.md).
 Preview .html, .md, .json and diagram files inside Google Chat, and .html and diagram files in Google Drive. No download needed.
 ```
 
-(130 characters.)
+(128 characters.)
 
 ### Detailed description (max 16,000)
 
@@ -32,15 +32,17 @@ thread, and reading it costs you four steps: download, find it in Downloads,
 open it, come back. This extension adds a Preview button next to the attachment
 and shows you the file in place.
 
+It works in Google Drive too. .html, .mmd and .puml files get the same button in
+the file list, the grid and the viewer, which otherwise shows them as source text.
+.md and .json are offered in Chat only.
+
 WHAT IT PREVIEWS
 
 • HTML — rendered as the page it is, exactly as the sender built it.
 • Markdown — headings, lists, tables, code blocks and links, properly rendered
-  rather than shown as source. Fenced code is syntax-coloured in around 25
-  languages: JavaScript, TypeScript, Python, Java, Kotlin, Dart, Go, Rust, PHP,
-  Ruby, C, C++, C#, Swift, SQL, shell, JSON, YAML, HTML, CSS, SCSS, Dockerfile,
-  diff and more. A fence tagged with something unrecognised stays a plain code
-  block rather than being coloured wrongly.
+  rather than shown as source. Fenced code is syntax-coloured in around 25 common
+  languages. A fence tagged with something unrecognised stays a plain code block
+  rather than being coloured wrongly.
 • Mermaid and PlantUML files — a whole .mmd or .puml attachment opens as the
   diagram itself, not as text. Mermaid is drawn on your own machine. Turn drawing
   off in the settings and the file still opens, showing its source, so a PlantUML
@@ -64,13 +66,13 @@ your own network. Mermaid diagrams never leave your browser.
 
 BUILT FOR FILES YOU DID NOT WRITE
 
-Anyone in a chat can send you a file, so every previewed file is treated as
-hostile.
+Anyone in a chat can send you a file, and anyone can share one with you in Drive,
+so every previewed file is treated as hostile.
 
 • It cannot reach your Google session. The preview renders in a doubly sandboxed
-  iframe with no same-origin access — your cookies, the Chat page and the
-  extension's own APIs are all out of reach. The file's markup is never inserted
-  into the Google Chat page.
+  iframe with no same-origin access — your cookies, the Chat or Drive page and
+  the extension's own APIs are all out of reach. The file's markup is never
+  inserted into the Google page.
 • It cannot phone home. Network access inside a preview is switched off at the
   Content Security Policy level: no fetch, no XHR, no WebSocket, no form posts,
   no popups, no remote images, fonts or scripts. Nothing a previewed file
@@ -83,10 +85,15 @@ hostile.
   fake login form in an attachment harmless. Markdown and JSON previews have no
   such toggle at all — the extension builds those documents itself and escapes
   every tag, so a JSON value containing <script> is just characters on screen.
+• It tells you what it found. Before an HTML file is shown, the extension reads it
+  on your machine and names what it holds: scripts, a password field, a page that
+  looks like a sign-in, or scripts that look deliberately disguised. Nothing is
+  sent anywhere for this. No note means nothing was found, not that the file is
+  safe; the sandbox protects you either way.
 
 LINKED RESOURCES FROM A CDN
 
-The cost of that last rule, stated plainly: a file that pulls its styling, fonts
+The cost of cutting off the network, stated plainly: a file that pulls its styling, fonts
 or scripts from a CDN renders without them, as unformatted text.
 
 If you would rather see those files the way they were written, you can switch it
@@ -109,17 +116,19 @@ much of a JSON tree opens by default, and the maximum file size to preview
 PRIVACY
 
 The extension has no analytics, no account, no server of its own, and sends
-nothing anywhere except the three cases it tells you about: fetching the
-attachment you asked to preview from Google's own servers; if you leave PlantUML
+nothing anywhere except the three cases it tells you about: fetching the file
+you asked to preview from Google's own servers; if you leave PlantUML
 enabled, the source of a PlantUML diagram to the PlantUML server you have
-configured; and if you switch linked resources on, the files an HTML attachment
+configured; and if you switch linked resources on, the files an HTML file
 links to, from the hosts you allowed. Full policy: https://hblab-dieuhd.github.io/gchat-preview-files/
 
-Not affiliated with, endorsed by, or sponsored by Google. Google Chat is a
-trademark of Google LLC.
+Not affiliated with, endorsed by, or sponsored by Google. Google Chat and Google
+Drive are trademarks of Google LLC.
 ```
 
-> Replace `<PRIVACY_POLICY_URL>` before pasting.
+> Do not list languages or similar terms here. 1.4.0 was rejected on 8 November 2026
+> (Spam and Placement in the Store, reference Yellow Argon, "excessive keywords") for
+> a run of 20 language names in the Markdown bullet.
 
 ### Category
 
@@ -269,16 +278,17 @@ nested iframe built with sandbox="" — every restriction on. Scripts in the fil
 not execute unless the user clicks Enable scripts on that individual preview, and
 even then they run only inside that opaque-origin frame, under a CSP of
 default-src 'none' with connect-src 'none' and form-action 'none'. They cannot
-reach the extension's APIs, the Google Chat page, the user's cookies, or the
-network.
+reach the extension's APIs, the Google Chat or Drive page, the user's cookies, or
+the network.
 ```
 
 ### Data usage — what the extension collects
 
 Tick these:
 
-- ☑ **Personal communications** — the contents of attachments sent in chat pass
-  through the extension in order to be rendered.
+- ☑ **Personal communications** — the contents of attachments sent in chat, and
+  of Drive files the user chooses to preview, pass through the extension in order
+  to be rendered.
 - ☑ **Website content** — same reason.
 
 Leave unticked: PII, health, financial and payment, authentication information,
